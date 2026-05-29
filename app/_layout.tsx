@@ -1,7 +1,14 @@
+import { useSettingsStore } from "@/stores/settingsStore";
 import { Stack } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 
 export default function RootLayout() {
+  const loadSettings = useSettingsStore((state) => state.loadSettings);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
   return (
     <Stack
       screenOptions={{
@@ -10,10 +17,16 @@ export default function RootLayout() {
       }}
     >
       <Stack.Screen name="index" />
+
       <Stack.Screen name="home" />
+
       <Stack.Screen name="supplier" />
+
       <Stack.Screen name="add_purchase_receipt" />
+
       <Stack.Screen name="purchase_receipt" />
+
+      <Stack.Screen name="settings" />
     </Stack>
   );
 }

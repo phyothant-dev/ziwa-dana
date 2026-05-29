@@ -1,3 +1,5 @@
+import { translations } from "@/locales";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -10,16 +12,22 @@ export default function HomeScreen() {
   const [email, setEmail] = useState<string>("");
   const [avatarAbbr, setAvatarAbbr] = useState<string>("??");
 
-  // Load user data on mount
+  // Extract values directly from store
+  const { language, themeColor, loadSettings } = useSettingsStore();
+
+  // Clean translation helper
+  const t = translations[language];
+
+  // Sync settings and metadata on mount
   useEffect(() => {
+    loadSettings();
+
     const loadUserData = async () => {
       try {
         const storedEmail = await AsyncStorage.getItem("email");
         if (storedEmail) {
           setEmail(storedEmail);
 
-          // Generate 2-letter abbreviation from email address
-          // e.g., "aprilzaw@gmail.com" -> "AP"
           const cleanName = storedEmail.split("@")[0];
           if (cleanName.length >= 2) {
             setAvatarAbbr(cleanName.substring(0, 2).toUpperCase());
@@ -55,31 +63,27 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.logoBox}>
+            <View style={[styles.logoBox, { backgroundColor: themeColor }]}>
               <Ionicons name="add" size={22} color="#fff" />
             </View>
             <Text style={styles.logoText}>BCN Web Portal</Text>
           </View>
 
           <View style={styles.headerRight}>
-            {/* Dynamic Avatar Initials */}
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{avatarAbbr}</Text>
+            <View
+              style={[styles.avatar, { backgroundColor: `${themeColor}20` }]}
+            >
+              <Text style={[styles.avatarText, { color: themeColor }]}>
+                {avatarAbbr}
+              </Text>
             </View>
 
-            {/* User Profile Info Wrap Container */}
             <View style={styles.profileWrapper}>
-              {/* {email ? (
-                <Text style={styles.emailText} numberOfLines={1}>
-                  {email}
-                </Text>
-              ) : null} */}
-
               <TouchableOpacity
                 style={styles.logoutButton}
                 onPress={handleLogout}
               >
-                <Text style={styles.logoutText}>ထွက်မည်</Text>
+                <Text style={styles.logoutText}>{t.logout}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -87,10 +91,10 @@ export default function HomeScreen() {
 
         {/* Body */}
         <View style={styles.content}>
-          <Text style={styles.title}>မင်္ဂလာပါ 👋</Text>
-          <Text style={styles.subtitle}>ဘာလုပ်မယ်ဆိုတာ ရွေးချယ်ပါ</Text>
+          <Text style={styles.title}>{t.welcome}</Text>
+          <Text style={styles.subtitle}>{t.subtitle}</Text>
 
-          {/* Card 1 */}
+          {/* Card 1 - Suppliers */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => {
@@ -99,22 +103,23 @@ export default function HomeScreen() {
           >
             <View style={styles.cardContent}>
               <View
-                style={[styles.iconContainer, { backgroundColor: "#CFF3DD" }]}
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: `${themeColor}15` },
+                ]}
               >
-                <Ionicons name="person-outline" size={24} color="#065F46" />
+                <Ionicons name="person-outline" size={24} color={themeColor} />
               </View>
 
               <View style={styles.textSection}>
-                <Text style={styles.cardTitle}>ကုန်သည်စာရင်း</Text>
-                <Text style={styles.cardDescription}>
-                  ကုန်သည်စာရင်း ကြည့်အသစ်မှတ််တမ်းတင်ရန်
-                </Text>
+                <Text style={styles.cardTitle}>{t.suppliers}</Text>
+                <Text style={styles.cardDescription}>{t.suppliersDesc}</Text>
               </View>
             </View>
-            <Ionicons name="arrow-forward-outline" size={20} color="#D1D5DB" />
+            <Ionicons name="arrow-forward-outline" size={16} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Card 2 */}
+          {/* Card 2 - Purchase Receipts */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => {
@@ -123,23 +128,43 @@ export default function HomeScreen() {
           >
             <View style={styles.cardContent}>
               <View
-                style={[styles.iconContainer, { backgroundColor: "#D9E9FF" }]}
+                style={[styles.iconContainer, { backgroundColor: "#E8F0FE" }]}
               >
                 <Ionicons
                   name="checkmark-circle-outline"
                   size={24}
-                  color="#2563EB"
+                  color="#1A73E8"
                 />
               </View>
 
               <View style={styles.textSection}>
-                <Text style={styles.cardTitle}>ကုန်လက်ခံလွှာ</Text>
-                <Text style={styles.cardDescription}>
-                  ကုန်လက်ခံစာရင်းကြည့် ထည့်မည်တင်ရန်
-                </Text>
+                <Text style={styles.cardTitle}>{t.receipts}</Text>
+                <Text style={styles.cardDescription}>{t.receiptsDesc}</Text>
               </View>
             </View>
-            <Ionicons name="arrow-forward-outline" size={20} color="#D1D5DB" />
+            <Ionicons name="arrow-forward-outline" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          {/* Card 3 - Settings */}
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => {
+              router.push("./settings");
+            }}
+          >
+            <View style={styles.cardContent}>
+              <View
+                style={[styles.iconContainer, { backgroundColor: "#F1F3F4" }]}
+              >
+                <Ionicons name="settings-outline" size={24} color="#5F6368" />
+              </View>
+
+              <View style={styles.textSection}>
+                <Text style={styles.cardTitle}>{t.settings}</Text>
+                <Text style={styles.cardDescription}>{t.settingsDesc}</Text>
+              </View>
+            </View>
+            <Ionicons name="arrow-forward-outline" size={16} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -150,7 +175,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E9ECEB",
+    backgroundColor: "#F8F9FA",
   },
   header: {
     backgroundColor: "#FFFFFF",
@@ -165,16 +190,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#10B26C",
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
   logoText: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "700",
     color: "#111827",
   },
@@ -183,78 +207,69 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#CFF3DD",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#065F46",
+    fontSize: 14,
+    fontWeight: "600",
   },
-  /* Added to align email inline right beside the button */
   profileWrapper: {
     flexDirection: "row",
     alignItems: "center",
   },
-  emailText: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginRight: 10,
-    fontWeight: "500",
-    maxWidth: 120, // Prevents layout breakages on small devices
-  },
   logoutButton: {
-    height: 38,
-    borderRadius: 14,
+    height: 36,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    paddingHorizontal: 16,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 14,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
   logoutText: {
     fontSize: 14,
-    color: "#4B5563",
+    color: "#374151",
     fontWeight: "500",
   },
   content: {
-    paddingHorizontal: 18,
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 24,
   },
   title: {
-    fontSize: 31,
+    fontSize: 28,
     fontWeight: "700",
     color: "#111827",
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginBottom: 28,
+    fontSize: 15,
+    color: "#4B5563",
+    marginBottom: 24,
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 26,
-    padding: 22,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   cardContent: {
     flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   iconContainer: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
@@ -264,14 +279,13 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   cardTitle: {
-    fontSize: 19,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#111827",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   cardDescription: {
-    fontSize: 15,
+    fontSize: 13,
     color: "#6B7280",
-    lineHeight: 22,
   },
 });

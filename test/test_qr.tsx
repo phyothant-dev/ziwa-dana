@@ -11,8 +11,8 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker, {
     DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+// 1. IMPORT EXPO CAMERA TOOLS
 import { Camera, CameraView } from "expo-camera";
-import * as Print from "expo-print";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -39,31 +39,33 @@ export default function PurchaseScreen() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
 
-  // New Search States for Modals
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [warehouseSearch, setWarehouseSearch] = useState("");
-
+  // Master Lists State
   const [items, setItems] = useState<ItemType[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierType[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Form Field Selections
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierType | null>(
     null,
   );
   const [selectedWarehouse, setSelectedWarehouse] =
     useState<WarehouseType | null>(null);
 
+  // Native Date Picker States
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // Modal Toggles (Added camera control interface flag)
   const [supplierModalVisible, setSupplierModalVisible] = useState(false);
   const [warehouseModalVisible, setWarehouseModalVisible] = useState(false);
   const [cartModalVisible, setCartModalVisible] = useState(false);
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+  // Cart State (Keyed by item code -> quantity)
   const [cart, setCart] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -142,249 +144,6 @@ export default function PurchaseScreen() {
       return updatedCart;
     });
   };
-  const handlePrintSlip = async (
-    receiptId: string,
-    checkoutItems: { item_code: string; qty: number }[],
-  ) => {
-    const totalQty = checkoutItems.reduce((sum, item) => sum + item.qty, 0);
-
-    const itemRowsHtml = checkoutItems
-      .map((cartItem) => {
-        const masterDetails = items.find((i) => i.name === cartItem.item_code);
-        const name = masterDetails?.item_name || cartItem.item_code;
-        const uom = masterDetails?.stock_uom || "Nos";
-        return `
-  <tr>
-    <td style="padding: 3px 0; font-size: 0.85rem; font-weight: bold; line-height: 1.1; text-align: left; color: #000; vertical-align: top;">
-      ${name}<br/>
-      <span style="color: #444; font-size: 0.7rem; font-weight: normal; letter-spacing: 0.3px;">${cartItem.item_code}</span>
-    </td>
-    <td style="padding: 3px 0; text-align: right; font-size: 0.85rem; font-weight: bold; vertical-align: top; white-space: nowrap; color: #000;">
-      ${cartItem.qty} ${uom}
-    </td>
-  </tr>
-`;
-      })
-      .join("");
-
-    const receiptHtml = `
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <style>
-      @page { size: auto; margin: 4mm; }
-      
-      html, body { 
-        margin: 0; 
-        padding: 0; 
-        background-color: #fff; 
-        color: #000; 
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-        -webkit-print-color-adjust: exact; 
-        print-color-adjust: exact; 
-      }
-      
-      body {
-        width: 100%;
-        box-sizing: border-box;
-      }
-
-      .receipt-wrapper {
-        width: 100%;
-        max-width: 100%;
-        padding: 0 2px;
-        box-sizing: border-box;
-      }
-      
-      .text-center { text-align: center; }
-      .receipt-header { margin-bottom: 0.8em; border-bottom: 1.5px dashed #000; padding-bottom: 0.6em; }
-      
-      .receipt-title { font-size: 1.2rem; font-weight: bold; margin: 0 0 2px 0; text-transform: uppercase; color: #000; }
-      .company-subtitle { font-size: 0.95rem; font-weight: bold; text-transform: uppercase; margin-top: 1px; color: #000; }
-      .id-title { font-size: 0.85rem; font-weight: bold; margin: 4px 0 0 0; color: #000; }
-      
-      /* Info Table set up as a single line layout */
-      .info-table { width: 100%; border-collapse: collapse; margin-bottom: 0.6em; }
-      .info-table td { font-size: 0.8rem; font-weight: normal; padding: 2px 0; color: #000; line-height: 1.2; vertical-align: top; }
-      
-      .items-table { width: 100%; border-collapse: collapse; margin-top: 0.6em; border-bottom: 1.5px dashed #000; }
-      .items-table th { border-bottom: 1.5px solid #000; padding: 4px 0; text-align: left; font-size: 0.8rem; font-weight: bold; color: #000; }
-      
-      .total-table { width: 100%; border-collapse: collapse; margin-top: 0.6em; border-bottom: 2px double #000; }
-      .total-table td { padding: 0.5em 0; font-size: 1rem; font-weight: bold; color: #000; }
-      
-      .footer { margin-top: 1.5em; font-size: 0.75rem; font-weight: normal; text-align: center; color: #000; padding-bottom: 0.5em; }
-    </style>
-  </head>
-  <body>
-    <div class="receipt-wrapper">
-      <div class="receipt-header text-center">
-        <h1 class="receipt-title">Purchase Receipt</h1>
-        <div class="company-subtitle">ZIWA DANA</div>
-        <div class="id-title">${receiptId}</div>
-      </div>
-      
-      <table class="info-table">
-        <tr>
-          <td style="text-align: left; width: 50%;">ကုန်သည်: &nbsp;<b>${selectedSupplier?.supplier_name || ""}</b></td>
-          <td style="text-align: right; width: 50%;">ရက်စွဲ: &nbsp;<b>${formattedDisplayDate}</b></td>
-        </tr>
-      </table>
-      
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th style="width: 70%;">Item Name</th>
-            <th style="width: 30%; text-align: right;">Qty</th>
-          </tr>
-        </thead>
-        <tbody>${itemRowsHtml}</tbody>
-      </table>
-      
-      <table class="total-table">
-        <tr>
-          <td style="text-align: left;">Items Total</td>
-          <td style="text-align: right;">${totalQty}</td>
-        </tr>
-      </table>
-      
-      <div class="footer">
-        <p style="margin: 0;">Ziwa Dana Mobile App</p>
-      </div>
-    </div>
-  </body>
-</html>
-`;
-
-    try {
-      await Print.printAsync({ html: receiptHtml });
-    } catch (printError) {
-      console.log("Printing Error:", printError);
-      Alert.alert("Error", "ဘောက်ချာပုံနှိပ်ခြင်း မအောင်မြင်ပါ။");
-    }
-  };
-
-  //   const handlePrintSlip = async (
-  //     receiptId: string,
-  //     checkoutItems: { item_code: string; qty: number }[],
-  //   ) => {
-  //     const totalQty = checkoutItems.reduce((sum, item) => sum + item.qty, 0);
-
-  //     const itemRowsHtml = checkoutItems
-  //       .map((cartItem) => {
-  //         const masterDetails = items.find((i) => i.name === cartItem.item_code);
-  //         const name = masterDetails?.item_name || cartItem.item_code;
-  //         const uom = masterDetails?.stock_uom || "Nos";
-  //         return `
-  //   <tr>
-  //     <td style="padding: 0.6em 0; font-size: 1.1rem; font-weight: bold; line-height: 1.3; text-align: left; color: #000; vertical-align: top;">
-  //       ${name}<br/>
-  //       <span style="color: #444; font-size: 0.85rem; font-weight: normal; letter-spacing: 0.5px;">${cartItem.item_code}</span>
-  //     </td>
-  //     <td style="padding: 0.6em 0; text-align: right; font-size: 1.1rem; font-weight: bold; vertical-align: top; white-space: nowrap; color: #000;">
-  //       ${cartItem.qty} ${uom}
-  //     </td>
-  //   </tr>
-  // `;
-  //       })
-  //       .join("");
-
-  //     const receiptHtml = `
-  // <html>
-  //   <head>
-  //     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  //     <style>
-  //       /* Removes hardcoded paper limits so the native printer driver can decide the boundaries */
-  //       @page { size: auto; margin: 5mm; }
-
-  //       html, body {
-  //         margin: 0;
-  //         padding: 0;
-  //         background-color: #fff;
-  //         color: #000;
-  //         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  //         -webkit-print-color-adjust: exact;
-  //         print-color-adjust: exact;
-  //       }
-
-  //       body {
-  //         width: 100%;
-  //         box-sizing: border-box;
-  //       }
-
-  //       /* Responsive Wrapper: Uses full width available regardless of paper type */
-  //       .receipt-wrapper {
-  //         width: 100%;
-  //         max-width: 100%;
-  //         padding: 0 4px;
-  //         box-sizing: border-box;
-  //       }
-
-  //       .text-center { text-align: center; }
-  //       .receipt-header { margin-bottom: 1.2em; border-bottom: 2px dashed #000; padding-bottom: 1em; }
-
-  //       /* Relative sizing (rem/em) scales smoothly across hardware */
-  //       .receipt-title { font-size: 1.5rem; font-weight: bold; margin: 0 0 4px 0; text-transform: uppercase; color: #000; }
-  //       .company-subtitle { font-size: 1.1rem; font-weight: bold; text-transform: uppercase; margin-top: 2px; color: #000; }
-  //       .id-title { font-size: 1rem; font-weight: bold; margin: 8px 0 0 0; color: #000; }
-
-  //       .info-table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-  //       .info-table td { font-size: 1rem; font-weight: normal; padding: 0.3em 0; text-align: left; color: #000; line-height: 1.4; }
-
-  //       .items-table { width: 100%; border-collapse: collapse; margin-top: 1em; border-bottom: 2px dashed #000; }
-  //       .items-table th { border-bottom: 2px solid #000; padding: 0.5em 0; text-align: left; font-size: 1rem; font-weight: bold; color: #000; }
-
-  //       .total-table { width: 100%; border-collapse: collapse; margin-top: 1em; border-bottom: 3px double #000; }
-  //       .total-table td { padding: 0.8em 0; font-size: 1.3rem; font-weight: bold; color: #000; }
-
-  //       .footer { margin-top: 2.5em; font-size: 0.85rem; font-weight: normal; text-align: center; color: #000; padding-bottom: 1em; }
-  //     </style>
-  //   </head>
-  //   <body>
-  //     <div class="receipt-wrapper">
-  //       <div class="receipt-header text-center">
-  //         <h1 class="receipt-title">Purchase Receipt</h1>
-  //         <div class="company-subtitle">ZIWA DANA</div>
-  //         <div class="id-title">${receiptId}</div>
-  //       </div>
-
-  //       <table class="info-table">
-  //         <tr><td>ရက်စွဲ: &nbsp;<b>${formattedDisplayDate}</b></td></tr>
-  //         <tr><td>ကုန်သည်: &nbsp;<b>${selectedSupplier?.supplier_name || ""}</b></td></tr>
-  //       </table>
-
-  //       <table class="items-table">
-  //         <thead>
-  //           <tr>
-  //             <th style="width: 70%;">Item Name</th>
-  //             <th style="width: 30%; text-align: right;">Qty</th>
-  //           </tr>
-  //         </thead>
-  //         <tbody>${itemRowsHtml}</tbody>
-  //       </table>
-
-  //       <table class="total-table">
-  //         <tr>
-  //           <td style="text-align: left;">Items Total</td>
-  //           <td style="text-align: right;">${totalQty}</td>
-  //         </tr>
-  //       </table>
-
-  //       <div class="footer">
-  //         <p style="margin: 0;">Ziwa Dana Mobile App</p>
-  //       </div>
-  //     </div>
-  //   </body>
-  // </html>
-  // `;
-
-  //     try {
-  //       await Print.printAsync({ html: receiptHtml });
-  //     } catch (printError) {
-  //       console.log("Printing Error:", printError);
-  //       Alert.alert("Error", "ဘောက်ချာပုံနှိပ်ခြင်း မအောင်မြင်ပါ။");
-  //     }
-  //   };
 
   const handleSavePurchaseReceipt = async () => {
     if (!selectedSupplier) {
@@ -413,27 +172,11 @@ export default function PurchaseScreen() {
         checkoutItems,
         formattedDisplayDate,
       );
-
       if (res.success) {
-        const documentId = res.data?.name || "N/A";
+        Alert.alert("အောင်မြင်ပါသည်", "ကုန်လက်ခံလွှာ သိမ်းဆည်းပြီးပါပြီ။");
         setCart({});
         setCartModalVisible(false);
-
-        Alert.alert(
-          "အောင်မြင်ပါသည်",
-          "ကုန်လက်ခံလွှာ သိမ်းဆည်းပြီးပါပြီ။ ဘောက်ချာ ဖြတ်ပိုင်း ထုတ်ယူမလား?",
-          [
-            { text: "မထုတ်ပါ", style: "cancel", onPress: () => router.back() },
-            {
-              text: "Slip ထုတ်မည်",
-              onPress: async () => {
-                await handlePrintSlip(documentId, checkoutItems);
-                router.back();
-              },
-            },
-          ],
-          { cancelable: false },
-        );
+        router.back();
       } else {
         Alert.alert("အမှားအယွင်း", res.error);
       }
@@ -444,6 +187,7 @@ export default function PurchaseScreen() {
     }
   };
 
+  // 2. LIVE NATIVE SCANNER ACTIVATION OVERRIDE
   const handleOpenScanner = async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
     setHasPermission(status === "granted");
@@ -458,6 +202,7 @@ export default function PurchaseScreen() {
     }
   };
 
+  // 3. BARCODE/QR CODE SCANNED RESPONSE HANDLING ROUTINE
   const handleBarcodeScanned = ({
     type,
     data,
@@ -465,16 +210,20 @@ export default function PurchaseScreen() {
     type: string;
     data: string;
   }) => {
-    setCameraModalVisible(false);
+    setCameraModalVisible(false); // Close camera modal right away
+
+    // Look for matching `name` (item_code) or `item_name` in the master items array
     const matchedItem = items.find(
       (product) => product.name?.toLowerCase() === data.trim().toLowerCase(),
     );
 
     if (matchedItem) {
+      // Append item or bump up its quantity in the cart
       setCart((prev) => ({
         ...prev,
         [matchedItem.name]: (prev[matchedItem.name] || 0) + 1,
       }));
+
       Alert.alert(
         "Item Added",
         `"${matchedItem.item_name}" ကို Cartထဲသို့ ထည့်ပြီးပါပြီ။`,
@@ -487,7 +236,6 @@ export default function PurchaseScreen() {
     }
   };
 
-  // Memoized Search Optimization for Base Items
   const filteredData = useMemo(() => {
     return items.filter((item) => {
       const matchSearch =
@@ -497,26 +245,6 @@ export default function PurchaseScreen() {
       return matchSearch && matchTab;
     });
   }, [search, activeTab, items]);
-
-  // Memoized Filtering for Suppliers Modal
-  const filteredSuppliers = useMemo(() => {
-    return suppliers.filter(
-      (s) =>
-        s.supplier_name?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-        s.supplier_group?.toLowerCase().includes(supplierSearch.toLowerCase()),
-    );
-  }, [supplierSearch, suppliers]);
-
-  // Memoized Filtering for Warehouse Modal
-  const filteredWarehouses = useMemo(() => {
-    return warehouses.filter(
-      (w) =>
-        w.warehouse_name
-          ?.toLowerCase()
-          .includes(warehouseSearch.toLowerCase()) ||
-        w.name?.toLowerCase().includes(warehouseSearch.toLowerCase()),
-    );
-  }, [warehouseSearch, warehouses]);
 
   const totalCartCount = useMemo(() => {
     return Object.values(cart).reduce((a, b) => a + b, 0);
@@ -554,19 +282,7 @@ export default function PurchaseScreen() {
             >
               <Ionicons name="remove" size={22} color="#18A06A" />
             </TouchableOpacity>
-
-            {/* INPUT DIRECTLY IN THE GRID CELLS */}
-            <TextInput
-              keyboardType="numeric"
-              style={styles.qtyInput}
-              value={String(currentQty)}
-              onChangeText={(text) => {
-                const parsed = parseInt(text.replace(/[^0-9]/g, ""), 10);
-                handleSetQty(item.name, isNaN(parsed) ? 0 : parsed);
-              }}
-              selectTextOnFocus
-            />
-
+            <Text style={styles.qtyText}>{currentQty}</Text>
             <TouchableOpacity
               style={styles.qtyButton}
               onPress={() => handleSetQty(item.name, currentQty + 1)}
@@ -694,6 +410,7 @@ export default function PurchaseScreen() {
                 style={styles.searchInput}
               />
             </View>
+            {/* LINKED LIVE SCANNER METHOD LINK HERE */}
             <TouchableOpacity
               style={styles.filterButton}
               onPress={handleOpenScanner}
@@ -752,7 +469,7 @@ export default function PurchaseScreen() {
         </>
       )}
 
-      {/* CAMERA VIEW SCANNER MODAL OVERLAY SHEET */}
+      {/* 4. REAL CAMERA VIEW SCANNER MODAL OVERLAY SHEET */}
       <Modal
         visible={cameraModalVisible}
         animationType="slide"
@@ -762,10 +479,12 @@ export default function PurchaseScreen() {
           <CameraView
             style={StyleSheet.absoluteFillObject}
             barcodeScannerSettings={{
-              barcodeTypes: ["qr", "ean13", "ean8", "code128"],
+              barcodeTypes: ["qr", "ean13", "ean8", "code128"], // Scan QR codes and standard barcodes
             }}
             onBarcodeScanned={handleBarcodeScanned}
           />
+
+          {/* Transparent Overlay with Scanner Reticle Target Mask */}
           <View style={styles.cameraOverlayMask}>
             <View style={styles.reticleTargetFrame}>
               <View style={[styles.cornerMarker, styles.topLeftCorner]} />
@@ -777,6 +496,8 @@ export default function PurchaseScreen() {
               ပစ္စည်းပေါ်ရှိ Barcode / QR Code ကို စတုရန်းကွက်အတွင်း ထားပေးပါ
             </Text>
           </View>
+
+          {/* Floating Exit Close Button */}
           <TouchableOpacity
             style={styles.closeCameraFabButton}
             onPress={() => setCameraModalVisible(false)}
@@ -786,36 +507,23 @@ export default function PurchaseScreen() {
         </View>
       </Modal>
 
-      {/* SEARCHABLE SUPPLIER DROPDOWN PICKER */}
+      {/* SUPPLIER DROPDOWN PICKER */}
       <Modal visible={supplierModalVisible} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setSupplierModalVisible(false)}
         >
-          <View style={[styles.pickerModalContainer, { height: "70%" }]}>
+          <View style={[styles.pickerModalContainer, { height: "60%" }]}>
             <Text style={styles.modalHeaderTitle}>ကုန်သည် ရွေးချယ်ရန်</Text>
-
-            {/* Modal Search Implementation */}
-            <View style={styles.modalSearchBox}>
-              <Ionicons name="search-outline" size={18} color="#9CA3AF" />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="ကုန်သည်အမည် ရှာရန်..."
-                value={supplierSearch}
-                onChangeText={setSupplierSearch}
-              />
-            </View>
-
             <FlatList
-              data={filteredSuppliers}
+              data={suppliers}
               keyExtractor={(item) => item.name!}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.pickerItem}
                   onPress={() => {
                     setSelectedSupplier(item);
-                    setSupplierSearch("");
                     setSupplierModalVisible(false);
                   }}
                 >
@@ -832,38 +540,25 @@ export default function PurchaseScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* SEARCHABLE WAREHOUSE DROPDOWN PICKER */}
+      {/* WAREHOUSE DROPDOWN PICKER */}
       <Modal visible={warehouseModalVisible} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setWarehouseModalVisible(false)}
         >
-          <View style={[styles.pickerModalContainer, { height: "60%" }]}>
+          <View style={styles.pickerModalContainer}>
             <Text style={styles.modalHeaderTitle}>
               သိုလှောင်ရုံ ရွေးချယ်ရန်
             </Text>
-
-            {/* Store Modal Search Layout */}
-            <View style={styles.modalSearchBox}>
-              <Ionicons name="search-outline" size={18} color="#9CA3AF" />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="သိုလှောင်ရုံ ရှာရန်..."
-                value={warehouseSearch}
-                onChangeText={setWarehouseSearch}
-              />
-            </View>
-
             <FlatList
-              data={filteredWarehouses}
+              data={warehouses}
               keyExtractor={(item) => item.name}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.pickerItem}
                   onPress={() => {
                     setSelectedWarehouse(item);
-                    setWarehouseSearch("");
                     setWarehouseModalVisible(false);
                   }}
                 >
@@ -918,6 +613,7 @@ export default function PurchaseScreen() {
                           {item.name} · {item.stock_uom || "Nos"}
                         </Text>
                       </View>
+
                       <TouchableOpacity
                         onPress={() => handleRemoveEntireItem(item.name)}
                         style={styles.trashIconWrapper}
@@ -937,22 +633,9 @@ export default function PurchaseScreen() {
                       >
                         <Ionicons name="remove" size={20} color="#18A06A" />
                       </TouchableOpacity>
-
-                      {/* EDITABLE TEXT INPUT IN THE CART OVERLAY */}
-                      <TextInput
-                        keyboardType="numeric"
-                        style={styles.cartQtyInput}
-                        value={String(currentQty)}
-                        onChangeText={(text) => {
-                          const parsed = parseInt(
-                            text.replace(/[^0-9]/g, ""),
-                            10,
-                          );
-                          handleSetQty(item.name, isNaN(parsed) ? 0 : parsed);
-                        }}
-                        selectTextOnFocus
-                      />
-
+                      <Text style={styles.cartQuantityValueText}>
+                        {currentQty}
+                      </Text>
                       <TouchableOpacity
                         style={styles.stepperButton}
                         onPress={() => handleIncreaseCartQty(item.name)}
@@ -1152,87 +835,185 @@ const styles = StyleSheet.create({
   },
   stateBadgeText: { color: "#18A06A", fontSize: 11, fontWeight: "700" },
   addButton: {
-    backgroundColor: "#18A06A",
-    borderRadius: 10,
     height: 38,
+    borderRadius: 10,
+    backgroundColor: "#18A06A",
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   addButtonText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     marginLeft: 4,
   },
   qtyRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 10,
-    height: 38,
-    paddingHorizontal: 4,
+    alignItems: "center",
   },
   qtyButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: "#fff",
-    alignItems: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "#18A06A",
     justifyContent: "center",
+    alignItems: "center",
   },
+  qtyText: { fontSize: 16, fontWeight: "800", color: "#111827" },
 
-  // Custom text inputs within controllers
-  qtyInput: {
+  /* OVERLAY SELECTIONS DECORATIONS */
+  modalOverlay: {
     flex: 1,
-    textAlign: "center",
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111827",
-    paddingVertical: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  cartQtyInput: {
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    paddingHorizontal: 6,
-    minWidth: 32,
-    paddingVertical: 0,
-  },
-
-  iosDatePickerContainer: {
+  pickerModalContainer: {
+    width: "85%",
+    maxHeight: "60%",
     backgroundColor: "#fff",
-    marginTop: 8,
+    borderRadius: 16,
+    padding: 18,
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 14,
+  },
+  pickerItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  pickerMainText: { fontSize: 15, color: "#111827", fontWeight: "600" },
+  pickerSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+
+  /* NATIVE IOS DATE PICKER STYLE SETS */
+  iosDatePickerContainer: {
+    backgroundColor: "#f9f9f9",
+    marginTop: 10,
+    borderRadius: 12,
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  iosDoneButton: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginRight: 10,
+    backgroundColor: "#18A06A",
+    borderRadius: 8,
+  },
+  iosDoneButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
+  /* CART BOTTOM SHEET LAYOUT DESIGN ELEMENTS */
+  modalBottomOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  cartBottomSheetContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    maxHeight: "80%",
+  },
+  pullBarIndicator: {
+    width: 50,
+    height: 5,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 14,
+  },
+  cartModalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  cartModalTitleText: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  cartItemRow: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  cartItemDetailsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  itemIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#E8F7F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cartItemNameText: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  cartItemSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  trashIconWrapper: { padding: 6 },
+  cartQuantityStepperContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    overflow: "hidden",
+    height: 48,
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
   },
-  iosDoneButton: {
-    alignItems: "flex-end",
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  iosDoneButtonText: { color: "#18A06A", fontWeight: "700", fontSize: 16 },
-  cameraScreenContainer: { flex: 1, backgroundColor: "#000" },
-  cameraOverlayMask: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  stepperButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  reticleTargetFrame: { width: 260, height: 260, position: "relative" },
+  cartQuantityValueText: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  submitReceiptButton: {
+    backgroundColor: "#18A06A",
+    height: 50,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  submitReceiptText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  /* 5. ADDED CUSTOM STYLES FOR THE LIVE CAMERA SCANNER MODAL WINDOW */
+  cameraScreenContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  cameraOverlayMask: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  reticleTargetFrame: {
+    width: 260,
+    height: 260,
+    position: "relative",
+    backgroundColor: "transparent",
+  },
   cornerMarker: {
     position: "absolute",
-    width: 24,
-    height: 24,
+    width: 32,
+    height: 32,
     borderColor: "#18A06A",
   },
   topLeftCorner: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4 },
@@ -1252,141 +1033,24 @@ const styles = StyleSheet.create({
   cameraInstructionsText: {
     color: "#fff",
     fontSize: 14,
-    marginTop: 24,
-    textAlign: "center",
-    paddingHorizontal: 30,
     fontWeight: "600",
+    textAlign: "center",
+    marginTop: 30,
+    paddingHorizontal: 30,
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 4,
   },
   closeCameraFabButton: {
     position: "absolute",
     top: 50,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 10,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  pickerModalContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  modalHeaderTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 16,
-  },
-
-  // Custom Modal Search Layouts
-  modalSearchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    marginBottom: 12,
-  },
-  modalSearchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: "#111827" },
-
-  pickerItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  pickerMainText: { fontSize: 15, fontWeight: "600", color: "#111827" },
-  pickerSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  modalBottomOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  cartBottomSheetContainer: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 34,
-    maxHeight: "80%",
-  },
-  pullBarIndicator: {
-    width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "#E5E7EB",
-    alignSelf: "center",
-    marginVertical: 10,
-  },
-  cartModalHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    paddingBottom: 12,
-  },
-  cartModalTitleText: { fontSize: 18, fontWeight: "700", color: "#111827" },
-  cartItemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  cartItemDetailsLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    marginRight: 10,
-  },
-  itemIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#E8F7F0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cartItemNameText: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  cartItemSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  trashIconWrapper: { padding: 6, marginLeft: 4 },
-  cartQuantityStepperContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
-    padding: 3,
-  },
-  stepperButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  submitReceiptButton: {
-    backgroundColor: "#18A06A",
-    borderRadius: 14,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 20,
-  },
-  submitReceiptText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

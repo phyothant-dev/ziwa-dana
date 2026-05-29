@@ -4,8 +4,8 @@ import {
     PurchaseReceiptType,
 } from "@/services/frappeService";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router"; // 1. Imported useFocusEffect
+import React, { useCallback, useMemo, useState } from "react"; // 2. Imported useCallback
 import {
     ActivityIndicator,
     Dimensions,
@@ -36,35 +36,17 @@ export default function MaterialPreOrderScreen() {
   const [receipts, setReceipts] = useState<PurchaseReceiptType[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 1. Add details states near your other useState variables
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [receiptDetails, setReceiptDetails] =
     useState<PurchaseReceiptType | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // 2. Add an explicit selection handler
-  const handleSelectReceipt = async (receiptSummary: any) => {
-    setSelectedReceipt(receiptSummary); // Open modal with summary info immediately
-    setReceiptDetails(null); // Clear old items history data
-
-    try {
-      setLoadingDetails(true);
-      const res = await getPurchaseReceiptDetails(receiptSummary.name);
-      if (res.success && res.data) {
-        setReceiptDetails(res.data); // Fill details state including items!
-      } else {
-        console.log("Failed loading child items:", res.error);
-      }
-    } catch (err) {
-      console.log("Details loading error:", err);
-    } finally {
-      setLoadingDetails(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPurchaseReceipts();
-  }, []);
+  // 3. AUTOMATIC RE-FETCH VIA navigation focus tracking listeners
+  useFocusEffect(
+    useCallback(() => {
+      loadPurchaseReceipts();
+    }, []),
+  );
 
   const loadPurchaseReceipts = async () => {
     try {
@@ -77,6 +59,25 @@ export default function MaterialPreOrderScreen() {
       console.log("Failed to fetch receipts:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectReceipt = async (receiptSummary: any) => {
+    setSelectedReceipt(receiptSummary);
+    setReceiptDetails(null);
+
+    try {
+      setLoadingDetails(true);
+      const res = await getPurchaseReceiptDetails(receiptSummary.name);
+      if (res.success && res.data) {
+        setReceiptDetails(res.data);
+      } else {
+        console.log("Failed loading child items:", res.error);
+      }
+    } catch (err) {
+      console.log("Details loading error:", err);
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
@@ -127,8 +128,6 @@ export default function MaterialPreOrderScreen() {
                   pathname: "/add_purchase_receipt",
                   params: {
                     supplierName: item.supplier_name,
-                    // If you have a supplier ID/code separate from the display name, pass it here:
-                    // supplierId: item.receipts[0]?.supplier
                   },
                 })
               }
@@ -171,7 +170,7 @@ export default function MaterialPreOrderScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {loading ? (
+      {loading && receipts.length === 0 ? (
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -235,7 +234,7 @@ export default function MaterialPreOrderScreen() {
         />
       )}
 
-      {/* DETAIL MODAL (MATCHES SCREENSHOT 3) */}
+      {/* DETAIL MODAL */}
       <Modal
         visible={selectedReceipt !== null}
         transparent
@@ -247,10 +246,8 @@ export default function MaterialPreOrderScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            {/* HANDLE BAR */}
             <View style={styles.handle} />
 
-            {/* MODAL HEADER */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedReceipt?.name}</Text>
               <TouchableOpacity
@@ -264,7 +261,6 @@ export default function MaterialPreOrderScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* GENERAL META INFO TABLE */}
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>ရက်စွဲ</Text>
                 <Text style={styles.metaValue}>
@@ -291,11 +287,9 @@ export default function MaterialPreOrderScreen() {
                 </Text>
               </View>
 
-              {/* NESTED ITEMS SECTION */}
               <Text style={styles.sectionTitle}>ကုန်ပစ္စည်းများ</Text>
 
               {loadingDetails ? (
-                /* Loading indicator displayed while fetching nested items array */
                 <View style={{ paddingVertical: 20, alignItems: "center" }}>
                   <ActivityIndicator size="small" color="#18A06A" />
                   <Text
@@ -305,7 +299,6 @@ export default function MaterialPreOrderScreen() {
                   </Text>
                 </View>
               ) : receiptDetails?.items && receiptDetails.items.length > 0 ? (
-                /* Real child item rows mapped cleanly */
                 receiptDetails.items.map((item: any, index: number) => (
                   <View key={index} style={styles.itemRow}>
                     <View style={{ flex: 1 }}>
@@ -320,7 +313,6 @@ export default function MaterialPreOrderScreen() {
                   </View>
                 ))
               ) : (
-                /* Catch fallback if no rows are present */
                 <View style={{ paddingVertical: 20, alignItems: "center" }}>
                   <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
                     ကုန်ပစ္စည်းများ မရှိပါ။
@@ -346,10 +338,7 @@ export default function MaterialPreOrderScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-  },
+  container: { flex: 1, backgroundColor: "#F3F4F6" },
   header: {
     backgroundColor: "#18A06A",
     paddingHorizontal: 16,
@@ -360,10 +349,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: -16,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center" },
   headerTitle: {
     color: "#fff",
     fontSize: isSmallDevice ? 18 : 20,
@@ -384,10 +370,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 4,
   },
-  stickySection: {
-    backgroundColor: "#F3F4F6",
-    marginHorizontal: -16,
-  },
+  stickySection: { backgroundColor: "#F3F4F6", marginHorizontal: -16 },
   searchWrapper: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
@@ -405,12 +388,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
-    color: "#111827",
-  },
+  searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: "#111827" },
   countContainer: {
     backgroundColor: "#F3F4F6",
     paddingVertical: 12,
@@ -418,13 +396,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
-  totalText: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  supplierBlock: {
-    marginTop: 20,
-  },
+  totalText: { fontSize: 14, color: "#6B7280" },
+  supplierBlock: { marginTop: 20 },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -432,10 +405,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 4,
   },
-  userSection: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  userSection: { flexDirection: "row", alignItems: "center" },
   avatar: {
     width: 44,
     height: 44,
@@ -445,25 +415,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#18A06A",
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#374151",
-  },
-  rightTop: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  countText: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginRight: 12,
-  },
+  avatarText: { fontSize: 14, fontWeight: "800", color: "#18A06A" },
+  userName: { fontSize: 16, fontWeight: "700", color: "#374151" },
+  rightTop: { flexDirection: "row", alignItems: "center" },
+  countText: { fontSize: 14, color: "#9CA3AF", marginRight: 12 },
   addButton: {
     height: 36,
     borderRadius: 18,
@@ -493,17 +448,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  invoiceText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#111827",
-    flex: 1,
-  },
-  dateText: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    marginLeft: 10,
-  },
+  invoiceText: { fontSize: 16, fontWeight: "800", color: "#111827", flex: 1 },
+  dateText: { fontSize: 13, color: "#9CA3AF", marginLeft: 10 },
   cardBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -516,15 +462,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 12,
   },
-  priceBadgeText: {
-    color: "#047857",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  itemQuantityText: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
+  priceBadgeText: { color: "#047857", fontSize: 13, fontWeight: "700" },
+  itemQuantityText: { fontSize: 13, color: "#6B7280" },
   floatingButton: {
     position: "absolute",
     right: 18,
@@ -543,8 +482,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginLeft: 6,
   },
-
-  /* MODAL VIEW STYLES */
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -574,11 +511,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-  },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: "#111827" },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -587,15 +520,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  metaLabel: {
-    fontSize: 15,
-    color: "#6B7280",
-  },
-  metaValue: {
-    fontSize: 15,
-    color: "#111827",
-    fontWeight: "500",
-  },
+  metaLabel: { fontSize: 15, color: "#6B7280" },
+  metaValue: { fontSize: 15, color: "#111827", fontWeight: "500" },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
@@ -613,19 +539,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  itemNameText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  itemCodeText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginTop: 2,
-  },
-  itemQtyText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#059669",
-  },
+  itemNameText: { fontSize: 15, fontWeight: "600", color: "#111827" },
+  itemCodeText: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
+  itemQtyText: { fontSize: 15, fontWeight: "600", color: "#059669" },
 });
