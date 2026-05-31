@@ -37,15 +37,10 @@ export default function SettingsScreen() {
   const textColorMode = useSettingsStore((state) => state.textColorMode);
   const setTextColorMode = useSettingsStore((state) => state.setTextColorMode);
 
-  // ── Local "pending" state — nothing is saved until the Save button is pressed ──
   const [pendingColor, setPendingColor] = useState(themeColor);
   const [pendingLanguage, setPendingLanguage] = useState(language);
-  const [pendingTextColorMode, setPendingTextColorMode] =
-    useState(textColorMode);
+  const [pendingTextColorMode, setPendingTextColorMode] = useState(textColorMode);
 
-  // loadSettings() in _layout.tsx is async — pending states above may have
-  // initialised with defaults before it resolved. Sync once when the real
-  // saved values arrive, but never again (so user edits are not overwritten).
   const synced = useRef(false);
   useEffect(() => {
     if (!synced.current) {
@@ -57,11 +52,8 @@ export default function SettingsScreen() {
   }, [themeColor, language, textColorMode]);
 
   const t = translations[pendingLanguage];
+  const previewTextColor = pendingTextColorMode === "dark" ? "#111827" : "#FFFFFF";
 
-  const previewTextColor =
-    pendingTextColorMode === "dark" ? "#111827" : "#FFFFFF";
-
-  // ── Color picker modal ──
   const [showPicker, setShowPicker] = useState(false);
   const [tempColor, setTempColor] = useState(pendingColor);
 
@@ -75,16 +67,12 @@ export default function SettingsScreen() {
     setShowPicker(false);
   };
 
-  const cancelPicker = () => {
-    setShowPicker(false);
-  };
+  const cancelPicker = () => setShowPicker(false);
 
-  // ── Save — only here do we write to the store + AsyncStorage ──
   const handleSave = () => {
     setThemeColor(pendingColor);
     setLanguage(pendingLanguage);
     setTextColorMode(pendingTextColorMode);
-
     Alert.alert(
       pendingLanguage === "mm" ? "သိမ်းပြီးပါပြီ" : "Settings Saved",
       pendingLanguage === "mm"
@@ -97,9 +85,9 @@ export default function SettingsScreen() {
   return (
     <>
       <StatusBar barStyle="light-content" />
-
       <SafeAreaView style={styles.container}>
-        {/* ── Header ── */}
+
+        {/* HEADER */}
         <View style={[styles.header, { backgroundColor: pendingColor }]}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -114,61 +102,48 @@ export default function SettingsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* ── Language ── */}
+          {/* LANGUAGE */}
           <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {t.language.toUpperCase()}
-              </Text>
-            </View>
-
+            <Text style={styles.sectionTitle}>{t.language.toUpperCase()}</Text>
             <View style={styles.row}>
               <TouchableOpacity
                 style={[
-                  styles.optionButton,
-                  pendingLanguage === "mm" && {
-                    borderColor: pendingColor,
-                    backgroundColor: "#EEF8F4",
-                  },
+                  styles.langButton,
+                  pendingLanguage === "mm" && { borderColor: pendingColor, backgroundColor: "#EEF8F4" },
                 ]}
                 onPress={() => setPendingLanguage("mm")}
               >
                 <Text style={styles.flag}>🇲🇲</Text>
                 <Text style={styles.optionText}>Myanmar</Text>
                 {pendingLanguage === "mm" && (
-                  <Ionicons name="checkmark" size={22} color={pendingColor} />
+                  <Ionicons name="checkmark" size={20} color={pendingColor} />
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
-                  styles.optionButton,
-                  pendingLanguage === "en" && {
-                    borderColor: pendingColor,
-                    backgroundColor: "#EEF8F4",
-                  },
+                  styles.langButton,
+                  pendingLanguage === "en" && { borderColor: pendingColor, backgroundColor: "#EEF8F4" },
                 ]}
                 onPress={() => setPendingLanguage("en")}
               >
                 <Text style={styles.flag}>🇬🇧</Text>
                 <Text style={styles.optionText}>English</Text>
                 {pendingLanguage === "en" && (
-                  <Ionicons name="checkmark" size={22} color={pendingColor} />
+                  <Ionicons name="checkmark" size={20} color={pendingColor} />
                 )}
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* ── Theme ── */}
+          {/* THEME */}
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
                 {pendingLanguage === "mm" ? "အရောင်" : "THEME"}
               </Text>
               <Text style={styles.sectionDescription}>
-                {pendingLanguage === "mm"
-                  ? "ရွေးချယ်နိုင်သော အရောင်များ"
-                  : "Available Colors"}
+                {pendingLanguage === "mm" ? "ရွေးချယ်နိုင်သော အရောင်များ" : "Available Colors"}
               </Text>
             </View>
 
@@ -190,129 +165,79 @@ export default function SettingsScreen() {
               ))}
             </View>
 
-            {/* Selected Color → tappable color picker */}
             <Text style={styles.label}>
               {pendingLanguage === "mm" ? "ကိုယ်တိုင်ရွေးရန်" : "Custom Color"}
             </Text>
 
-            <TouchableOpacity
-              style={styles.selectedPreview}
-              onPress={openPicker}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[styles.previewColor, { backgroundColor: pendingColor }]}
-              />
+            <TouchableOpacity style={styles.selectedPreview} onPress={openPicker} activeOpacity={0.8}>
+              <View style={[styles.previewColor, { backgroundColor: pendingColor }]} />
               <View>
                 <Text style={styles.hexText}>{pendingColor.toUpperCase()}</Text>
                 <Text style={styles.tapHint}>
-                  {pendingLanguage === "mm"
-                    ? "နှိပ်၍ ပြောင်းရန်"
-                    : "Tap to change"}
+                  {pendingLanguage === "mm" ? "နှိပ်၍ ပြောင်းရန်" : "Tap to change"}
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {/* Text Color */}
-            <Text style={[styles.label, { marginTop: 24 }]}>
+            {/* TEXT COLOR */}
+            <Text style={[styles.label, { marginTop: 20 }]}>
               {pendingLanguage === "mm" ? "စာလုံးအရောင်" : "Text Color"}
             </Text>
 
             <View style={styles.row}>
               <TouchableOpacity
                 style={[
-                  styles.optionButton,
-                  pendingTextColorMode === "light" && {
-                    borderColor: pendingColor,
-                    backgroundColor: "#EEF8F4",
-                  },
+                  styles.textColorButton,
+                  pendingTextColorMode === "light" && { borderColor: pendingColor, backgroundColor: "#EEF8F4" },
                 ]}
                 onPress={() => setPendingTextColorMode("light")}
               >
                 <View style={styles.whiteColorBox} />
-                <Text style={styles.optionText}>
+                <Text style={styles.optionTextSm}>
                   {pendingLanguage === "mm" ? "အဖြူ" : "White"}
                 </Text>
                 {pendingTextColorMode === "light" && (
-                  <Ionicons name="checkmark" size={22} color={pendingColor} />
+                  <Ionicons name="checkmark" size={18} color={pendingColor} />
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
-                  styles.optionButton,
-                  pendingTextColorMode === "dark" && {
-                    borderColor: pendingColor,
-                    backgroundColor: "#EEF8F4",
-                  },
+                  styles.textColorButton,
+                  pendingTextColorMode === "dark" && { borderColor: pendingColor, backgroundColor: "#EEF8F4" },
                 ]}
                 onPress={() => setPendingTextColorMode("dark")}
               >
                 <View style={styles.blackColorBox} />
-                <Text style={styles.optionText}>
+                <Text style={styles.optionTextSm}>
                   {pendingLanguage === "mm" ? "အမည်း" : "Black"}
                 </Text>
                 {pendingTextColorMode === "dark" && (
-                  <Ionicons name="checkmark" size={22} color={pendingColor} />
+                  <Ionicons name="checkmark" size={18} color={pendingColor} />
                 )}
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* ── Preview — uses pending values ── */}
+          {/* PREVIEW */}
           <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {pendingLanguage === "mm" ? "နမူနာပုံ" : "PREVIEW"}
-              </Text>
-            </View>
-
+            <Text style={styles.sectionTitle}>
+              {pendingLanguage === "mm" ? "နမူနာပုံ" : "PREVIEW"}
+            </Text>
             <View style={styles.previewBox}>
-              <View
-                style={[
-                  styles.previewHeader,
-                  { backgroundColor: pendingColor },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.previewHeaderText,
-                    { color: previewTextColor },
-                  ]}
-                >
-                  📦{" "}
-                  {pendingLanguage === "mm"
-                    ? "ကုန်လက်ခံလွှာ"
-                    : "Purchase Receipt"}
+              <View style={[styles.previewHeader, { backgroundColor: pendingColor }]}>
+                <Text style={[styles.previewHeaderText, { color: previewTextColor }]}>
+                  📦 {pendingLanguage === "mm" ? "ကုန်လက်ခံလွှာ" : "Purchase Receipt"}
                 </Text>
               </View>
-
               <View style={styles.previewContent}>
-                <TouchableOpacity
-                  style={[
-                    styles.previewButton,
-                    { backgroundColor: pendingColor },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.previewButtonText,
-                      { color: previewTextColor },
-                    ]}
-                  >
+                <TouchableOpacity style={[styles.previewButton, { backgroundColor: pendingColor }]}>
+                  <Text style={[styles.previewButtonText, { color: previewTextColor }]}>
                     {pendingLanguage === "mm" ? "ထည့်မည်" : "Add"}
                   </Text>
                 </TouchableOpacity>
-
-                <View
-                  style={[
-                    styles.previewBadge,
-                    { borderColor: `${pendingColor}55` },
-                  ]}
-                >
-                  <Text
-                    style={[styles.previewBadgeText, { color: pendingColor }]}
-                  >
+                <View style={[styles.previewBadge, { borderColor: `${pendingColor}55` }]}>
+                  <Text style={[styles.previewBadgeText, { color: pendingColor }]}>
                     {pendingLanguage === "mm" ? "နမူနာ Badge" : "Sample Badge"}
                   </Text>
                 </View>
@@ -320,39 +245,27 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* ── Save ── */}
+          {/* SAVE */}
           <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: pendingColor }]}
             onPress={handleSave}
           >
-            <Text style={[styles.saveText, { color: previewTextColor }]}>
-              {t.save}
-            </Text>
+            <Text style={[styles.saveText, { color: previewTextColor }]}>{t.save}</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
 
-      {/* ── Color Picker Modal ── */}
-      <Modal
-        visible={showPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={cancelPicker}
-      >
+      {/* COLOR PICKER MODAL */}
+      <Modal visible={showPicker} transparent animationType="slide" onRequestClose={cancelPicker}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={cancelPicker}
-              >
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={cancelPicker}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
-
               <Text style={styles.modalTitle}>
                 {pendingLanguage === "mm" ? "အရောင်ရွေးချယ်ပါ" : "Pick a Color"}
               </Text>
-
               <TouchableOpacity
                 style={[styles.modalConfirmBtn, { backgroundColor: tempColor }]}
                 onPress={confirmColor}
@@ -362,9 +275,7 @@ export default function SettingsScreen() {
             </View>
 
             <View style={styles.modalSwatchRow}>
-              <View
-                style={[styles.modalSwatch, { backgroundColor: tempColor }]}
-              />
+              <View style={[styles.modalSwatch, { backgroundColor: tempColor }]} />
               <Text style={styles.modalHexText}>{tempColor.toUpperCase()}</Text>
             </View>
 
@@ -386,65 +297,45 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ECECEC",
-  },
+  container: { flex: 1, backgroundColor: "#ECECEC" },
+
   header: {
-    height: 90,
+    height: 80,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 18,
   },
-  headerTitleWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 14,
-  },
-  headerIcon: {
-    fontSize: 22,
-    marginRight: 8,
-  },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  scrollContent: {
-    padding: 18,
-    paddingBottom: 40,
-  },
+  headerTitleWrap: { flexDirection: "row", alignItems: "center", marginLeft: 14 },
+  headerIcon: { fontSize: 20, marginRight: 8 },
+  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700" },
+
+  scrollContent: { padding: 16, paddingBottom: 40 },
+
   card: {
     backgroundColor: "#F7F7F7",
-    borderRadius: 26,
-    padding: 18,
-    marginBottom: 18,
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#E2E5E9",
   },
-  sectionHeader: {
-    marginBottom: 20,
-  },
+  sectionHeader: { marginBottom: 16 },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "800",
     color: "#6B7280",
     letterSpacing: 0.8,
+    marginBottom: 14,
   },
-  sectionDescription: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 6,
-    lineHeight: 20,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  optionButton: {
+  sectionDescription: { fontSize: 13, color: "#9CA3AF", marginTop: 4 },
+
+  row: { flexDirection: "row", justifyContent: "space-between" },
+
+  // Language buttons — kept at original size
+  langButton: {
     width: "48%",
-    height: 60,
-    borderRadius: 20,
+    height: 96,
+    borderRadius: 18,
     borderWidth: 2,
     borderColor: "#D9DCE1",
     backgroundColor: "#fff",
@@ -452,131 +343,96 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-evenly",
   },
-  flag: {
-    fontSize: 20,
-  },
-  optionText: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  label: {
-    fontSize: 15,
-    color: "#9CA3AF",
-    marginBottom: 16,
-  },
-  colorGrid: {
+
+  // Text color buttons — smaller
+  textColorButton: {
+    width: "48%",
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#D9DCE1",
+    backgroundColor: "#fff",
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    paddingHorizontal: 10,
   },
+
+  flag: { fontSize: 28 },
+  optionText: { fontSize: 16, fontWeight: "600", color: "#111827" },
+  optionTextSm: { fontSize: 14, fontWeight: "600", color: "#111827" },
+
+  label: { fontSize: 13, color: "#9CA3AF", marginBottom: 14 },
+
+  colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
   colorBox: {
-    width: 62,
-    height: 62,
-    borderRadius: 16,
-    marginBottom: 12,
+    width: 58,
+    height: 58,
+    borderRadius: 15,
+    marginBottom: 8,
     justifyContent: "center",
     alignItems: "center",
   },
-  selectedColorBox: {
-    borderWidth: 4,
-    borderColor: "#111827",
-  },
-  selectedPreview: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  selectedColorBox: { borderWidth: 4, borderColor: "#111827" },
+
+  selectedPreview: { flexDirection: "row", alignItems: "center" },
   previewColor: {
-    width: 74,
-    height: 74,
-    borderRadius: 18,
-    marginRight: 16,
+    width: 66,
+    height: 66,
+    borderRadius: 16,
+    marginRight: 14,
     borderWidth: 4,
     borderColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
   },
-  hexText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#4B5563",
-  },
-  tapHint: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    marginTop: 4,
-  },
+  hexText: { fontSize: 18, fontWeight: "700", color: "#4B5563" },
+  tapHint: { fontSize: 12, color: "#9CA3AF", marginTop: 3 },
+
   whiteColorBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: "#fff",
     borderWidth: 2,
     borderColor: "#D1D5DB",
   },
   blackColorBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: "#0F172A",
   },
-  previewBox: {
-    borderRadius: 22,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E2E5E9",
-  },
-  previewHeader: {
-    padding: 22,
-  },
-  previewHeaderText: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
+
+  previewBox: { borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: "#E2E5E9" },
+  previewHeader: { padding: 18 },
+  previewHeaderText: { fontSize: 16, fontWeight: "700" },
   previewContent: {
     backgroundColor: "#fff",
-    padding: 22,
+    padding: 18,
     flexDirection: "row",
     alignItems: "center",
   },
   previewButton: {
-    height: 66,
-    paddingHorizontal: 32,
-    borderRadius: 18,
+    height: 52,
+    paddingHorizontal: 26,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: 14,
   },
-  previewButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
+  previewButtonText: { fontSize: 16, fontWeight: "700" },
   previewBadge: {
     borderWidth: 2,
     borderRadius: 999,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: "#EEF8F4",
   },
-  previewBadgeText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  saveButton: {
-    height: 84,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  saveText: {
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
+  previewBadgeText: { fontSize: 14, fontWeight: "700" },
+
+  saveButton: { height: 72, borderRadius: 22, justifyContent: "center", alignItems: "center" },
+  saveText: { fontSize: 20, fontWeight: "700" },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 32,
@@ -590,11 +446,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#111827" },
   modalCancelBtn: {
     width: 40,
     height: 40,
@@ -610,26 +462,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalSwatchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 14,
-  },
-  modalSwatch: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 3,
-    borderColor: "#F3F4F6",
-  },
-  modalHexText: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1F2937",
-    letterSpacing: 1,
-  },
-  pickerWrap: {
-    height: 300,
-  },
+  modalSwatchRow: { flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 14 },
+  modalSwatch: { width: 52, height: 52, borderRadius: 14, borderWidth: 3, borderColor: "#F3F4F6" },
+  modalHexText: { fontSize: 22, fontWeight: "700", color: "#1F2937", letterSpacing: 1 },
+  pickerWrap: { height: 300 },
 });

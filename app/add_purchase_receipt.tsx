@@ -1,13 +1,17 @@
+import { translations } from "@/locales/index";
 import {
     createPurchaseReceipt,
     getItems,
     getSuppliers,
     getWarehouses,
     ItemType,
+    parseFrappeError,
     SupplierType,
     WarehouseType,
 } from "@/services/frappeService";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, {
     DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -20,6 +24,7 @@ import {
     Alert,
     Dimensions,
     FlatList,
+    Image,
     Modal,
     Platform,
     StatusBar,
@@ -36,10 +41,17 @@ const CARD_WIDTH = (width - 44) / 2;
 
 export default function PurchaseScreen() {
   const { supplierName } = useLocalSearchParams<{ supplierName?: string }>();
+
+  const { language, themeColor, loadSettings } = useSettingsStore();
+  const t = translations[language] || translations["mm"];
+
+  const [siteUrl, setSiteUrl] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
 
-  // New Search States for Modals
+  const [sortBy, setSortBy] = useState("Name A→Z");
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+
   const [supplierSearch, setSupplierSearch] = useState("");
   const [warehouseSearch, setWarehouseSearch] = useState("");
 
@@ -65,8 +77,21 @@ export default function PurchaseScreen() {
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
-
+  const [selectedUoms, setSelectedUoms] = useState<Record<string, string>>({});
+  const [activeUomMenu, setActiveUomMenu] = useState<string | null>(null);
+  const sortOptions = [
+    { id: "Name A→Z", label: t.sortNameAZ },
+    { id: "Name Z→A", label: t.sortNameZA },
+    { id: "Code A→Z", label: t.sortCodeAZ },
+    { id: "Code Z→A", label: t.sortCodeZA },
+    { id: "Group", label: t.sortGroup },
+  ];
   useEffect(() => {
+    loadSettings();
+    // Load saved site URL for building image paths
+    AsyncStorage.getItem("siteUrl").then((url) => {
+      if (url) setSiteUrl(url);
+    });
     loadFormMasterData();
   }, []);
 
@@ -89,7 +114,6 @@ export default function PurchaseScreen() {
         getSuppliers(),
         getWarehouses(),
       ]);
-
       if (itemRes.success && itemRes.data) setItems(itemRes.data);
       if (supplierRes.success && supplierRes.data)
         setSuppliers(supplierRes.data);
@@ -111,12 +135,8 @@ export default function PurchaseScreen() {
   }, [date]);
 
   const onChangeDate = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
-    }
-    if (selectedDate) {
-      setDate(selectedDate);
-    }
+    if (Platform.OS === "android") setShowDatePicker(false);
+    if (selectedDate) setDate(selectedDate);
   };
 
   const handleSetQty = (itemCode: string, amount: number) => {
@@ -142,9 +162,14 @@ export default function PurchaseScreen() {
       return updatedCart;
     });
   };
+
   const handlePrintSlip = async (
     receiptId: string,
-    checkoutItems: { item_code: string; qty: number }[],
+    checkoutItems: {
+      item_code: string;
+      qty: number;
+      uom: string;
+    }[],
   ) => {
     const totalQty = checkoutItems.reduce((sum, item) => sum + item.qty, 0);
 
@@ -152,7 +177,7 @@ export default function PurchaseScreen() {
       .map((cartItem) => {
         const masterDetails = items.find((i) => i.name === cartItem.item_code);
         const name = masterDetails?.item_name || cartItem.item_code;
-        const uom = masterDetails?.stock_uom || "Nos";
+        const uom = cartItem.uom || masterDetails?.stock_uom || "Nos";
         return `
   <tr>
     <td style="padding: 3px 0; font-size: 0.85rem; font-weight: bold; line-height: 1.1; text-align: left; color: #000; vertical-align: top;">
@@ -173,46 +198,20 @@ export default function PurchaseScreen() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <style>
       @page { size: auto; margin: 4mm; }
-      
-      html, body { 
-        margin: 0; 
-        padding: 0; 
-        background-color: #fff; 
-        color: #000; 
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-        -webkit-print-color-adjust: exact; 
-        print-color-adjust: exact; 
-      }
-      
-      body {
-        width: 100%;
-        box-sizing: border-box;
-      }
-
-      .receipt-wrapper {
-        width: 100%;
-        max-width: 100%;
-        padding: 0 2px;
-        box-sizing: border-box;
-      }
-      
+      html, body { margin: 0; padding: 0; background-color: #fff; color: #000; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { width: 100%; box-sizing: border-box; }
+      .receipt-wrapper { width: 100%; max-width: 100%; padding: 0 2px; box-sizing: border-box; }
       .text-center { text-align: center; }
       .receipt-header { margin-bottom: 0.8em; border-bottom: 1.5px dashed #000; padding-bottom: 0.6em; }
-      
       .receipt-title { font-size: 1.2rem; font-weight: bold; margin: 0 0 2px 0; text-transform: uppercase; color: #000; }
       .company-subtitle { font-size: 0.95rem; font-weight: bold; text-transform: uppercase; margin-top: 1px; color: #000; }
       .id-title { font-size: 0.85rem; font-weight: bold; margin: 4px 0 0 0; color: #000; }
-      
-      /* Info Table set up as a single line layout */
       .info-table { width: 100%; border-collapse: collapse; margin-bottom: 0.6em; }
       .info-table td { font-size: 0.8rem; font-weight: normal; padding: 2px 0; color: #000; line-height: 1.2; vertical-align: top; }
-      
       .items-table { width: 100%; border-collapse: collapse; margin-top: 0.6em; border-bottom: 1.5px dashed #000; }
       .items-table th { border-bottom: 1.5px solid #000; padding: 4px 0; text-align: left; font-size: 0.8rem; font-weight: bold; color: #000; }
-      
       .total-table { width: 100%; border-collapse: collapse; margin-top: 0.6em; border-bottom: 2px double #000; }
       .total-table td { padding: 0.5em 0; font-size: 1rem; font-weight: bold; color: #000; }
-      
       .footer { margin-top: 1.5em; font-size: 0.75rem; font-weight: normal; text-align: center; color: #000; padding-bottom: 0.5em; }
     </style>
   </head>
@@ -223,14 +222,12 @@ export default function PurchaseScreen() {
         <div class="company-subtitle">ZIWA DANA</div>
         <div class="id-title">${receiptId}</div>
       </div>
-      
       <table class="info-table">
         <tr>
           <td style="text-align: left; width: 50%;">ကုန်သည်: &nbsp;<b>${selectedSupplier?.supplier_name || ""}</b></td>
           <td style="text-align: right; width: 50%;">ရက်စွဲ: &nbsp;<b>${formattedDisplayDate}</b></td>
         </tr>
       </table>
-      
       <table class="items-table">
         <thead>
           <tr>
@@ -240,14 +237,12 @@ export default function PurchaseScreen() {
         </thead>
         <tbody>${itemRowsHtml}</tbody>
       </table>
-      
       <table class="total-table">
         <tr>
           <td style="text-align: left;">Items Total</td>
           <td style="text-align: right;">${totalQty}</td>
         </tr>
       </table>
-      
       <div class="footer">
         <p style="margin: 0;">Ziwa Dana Mobile App</p>
       </div>
@@ -260,148 +255,35 @@ export default function PurchaseScreen() {
       await Print.printAsync({ html: receiptHtml });
     } catch (printError) {
       console.log("Printing Error:", printError);
-      Alert.alert("Error", "ဘောက်ချာပုံနှိပ်ခြင်း မအောင်မြင်ပါ။");
+      Alert.alert(t.errorTitle, t.printErrorMsg);
     }
   };
 
-  //   const handlePrintSlip = async (
-  //     receiptId: string,
-  //     checkoutItems: { item_code: string; qty: number }[],
-  //   ) => {
-  //     const totalQty = checkoutItems.reduce((sum, item) => sum + item.qty, 0);
-
-  //     const itemRowsHtml = checkoutItems
-  //       .map((cartItem) => {
-  //         const masterDetails = items.find((i) => i.name === cartItem.item_code);
-  //         const name = masterDetails?.item_name || cartItem.item_code;
-  //         const uom = masterDetails?.stock_uom || "Nos";
-  //         return `
-  //   <tr>
-  //     <td style="padding: 0.6em 0; font-size: 1.1rem; font-weight: bold; line-height: 1.3; text-align: left; color: #000; vertical-align: top;">
-  //       ${name}<br/>
-  //       <span style="color: #444; font-size: 0.85rem; font-weight: normal; letter-spacing: 0.5px;">${cartItem.item_code}</span>
-  //     </td>
-  //     <td style="padding: 0.6em 0; text-align: right; font-size: 1.1rem; font-weight: bold; vertical-align: top; white-space: nowrap; color: #000;">
-  //       ${cartItem.qty} ${uom}
-  //     </td>
-  //   </tr>
-  // `;
-  //       })
-  //       .join("");
-
-  //     const receiptHtml = `
-  // <html>
-  //   <head>
-  //     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  //     <style>
-  //       /* Removes hardcoded paper limits so the native printer driver can decide the boundaries */
-  //       @page { size: auto; margin: 5mm; }
-
-  //       html, body {
-  //         margin: 0;
-  //         padding: 0;
-  //         background-color: #fff;
-  //         color: #000;
-  //         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  //         -webkit-print-color-adjust: exact;
-  //         print-color-adjust: exact;
-  //       }
-
-  //       body {
-  //         width: 100%;
-  //         box-sizing: border-box;
-  //       }
-
-  //       /* Responsive Wrapper: Uses full width available regardless of paper type */
-  //       .receipt-wrapper {
-  //         width: 100%;
-  //         max-width: 100%;
-  //         padding: 0 4px;
-  //         box-sizing: border-box;
-  //       }
-
-  //       .text-center { text-align: center; }
-  //       .receipt-header { margin-bottom: 1.2em; border-bottom: 2px dashed #000; padding-bottom: 1em; }
-
-  //       /* Relative sizing (rem/em) scales smoothly across hardware */
-  //       .receipt-title { font-size: 1.5rem; font-weight: bold; margin: 0 0 4px 0; text-transform: uppercase; color: #000; }
-  //       .company-subtitle { font-size: 1.1rem; font-weight: bold; text-transform: uppercase; margin-top: 2px; color: #000; }
-  //       .id-title { font-size: 1rem; font-weight: bold; margin: 8px 0 0 0; color: #000; }
-
-  //       .info-table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-  //       .info-table td { font-size: 1rem; font-weight: normal; padding: 0.3em 0; text-align: left; color: #000; line-height: 1.4; }
-
-  //       .items-table { width: 100%; border-collapse: collapse; margin-top: 1em; border-bottom: 2px dashed #000; }
-  //       .items-table th { border-bottom: 2px solid #000; padding: 0.5em 0; text-align: left; font-size: 1rem; font-weight: bold; color: #000; }
-
-  //       .total-table { width: 100%; border-collapse: collapse; margin-top: 1em; border-bottom: 3px double #000; }
-  //       .total-table td { padding: 0.8em 0; font-size: 1.3rem; font-weight: bold; color: #000; }
-
-  //       .footer { margin-top: 2.5em; font-size: 0.85rem; font-weight: normal; text-align: center; color: #000; padding-bottom: 1em; }
-  //     </style>
-  //   </head>
-  //   <body>
-  //     <div class="receipt-wrapper">
-  //       <div class="receipt-header text-center">
-  //         <h1 class="receipt-title">Purchase Receipt</h1>
-  //         <div class="company-subtitle">ZIWA DANA</div>
-  //         <div class="id-title">${receiptId}</div>
-  //       </div>
-
-  //       <table class="info-table">
-  //         <tr><td>ရက်စွဲ: &nbsp;<b>${formattedDisplayDate}</b></td></tr>
-  //         <tr><td>ကုန်သည်: &nbsp;<b>${selectedSupplier?.supplier_name || ""}</b></td></tr>
-  //       </table>
-
-  //       <table class="items-table">
-  //         <thead>
-  //           <tr>
-  //             <th style="width: 70%;">Item Name</th>
-  //             <th style="width: 30%; text-align: right;">Qty</th>
-  //           </tr>
-  //         </thead>
-  //         <tbody>${itemRowsHtml}</tbody>
-  //       </table>
-
-  //       <table class="total-table">
-  //         <tr>
-  //           <td style="text-align: left;">Items Total</td>
-  //           <td style="text-align: right;">${totalQty}</td>
-  //         </tr>
-  //       </table>
-
-  //       <div class="footer">
-  //         <p style="margin: 0;">Ziwa Dana Mobile App</p>
-  //       </div>
-  //     </div>
-  //   </body>
-  // </html>
-  // `;
-
-  //     try {
-  //       await Print.printAsync({ html: receiptHtml });
-  //     } catch (printError) {
-  //       console.log("Printing Error:", printError);
-  //       Alert.alert("Error", "ဘောက်ချာပုံနှိပ်ခြင်း မအောင်မြင်ပါ။");
-  //     }
-  //   };
-
   const handleSavePurchaseReceipt = async () => {
     if (!selectedSupplier) {
-      Alert.alert("သတိပေးချက်", "ကျေးဇူးပြု၍ ကုန်သည် အရင်ရွေးချယ်ပေးပါဦး။");
+      Alert.alert(t.warningTitle, t.supplierWarningMsg);
       return;
     }
     if (!selectedWarehouse) {
-      Alert.alert("သတိပေးချက်", "ကျေးဇူးပြု၍ သိုလှောင်ရုံ ရွေးချယ်ပေးပါဦး။");
+      Alert.alert(t.warningTitle, t.warehouseWarningMsg);
       return;
     }
 
     const checkoutItems = Object.entries(cart)
       .filter(([_, qty]) => qty > 0)
-      .map(([item_code, qty]) => ({ item_code, qty }));
+      .map(([item_code, qty]) => {
+        const itemMaster = items.find((i) => i.name === item_code);
+        const resolvedUom =
+          selectedUoms[item_code] || itemMaster?.stock_uom || "Nos";
 
+        return {
+          item_code,
+          qty,
+          uom: resolvedUom,
+        };
+      });
     if (checkoutItems.length === 0) {
-      Alert.alert("သတိပေးချက်", "ဝယ်ယူရန် ပစ္စည်းအနည်းဆုံး ၁ ခုထည့်ပေးပါ။");
+      Alert.alert(t.warningTitle, t.cartEmptyWarningMsg);
       return;
     }
 
@@ -417,15 +299,20 @@ export default function PurchaseScreen() {
       if (res.success) {
         const documentId = res.data?.name || "N/A";
         setCart({});
+        setSelectedUoms({});
         setCartModalVisible(false);
 
         Alert.alert(
-          "အောင်မြင်ပါသည်",
-          "ကုန်လက်ခံလွှာ သိမ်းဆည်းပြီးပါပြီ။ ဘောက်ချာ ဖြတ်ပိုင်း ထုတ်ယူမလား?",
+          t.successTitle,
+          t.saveReceiptSuccessMsg,
           [
-            { text: "မထုတ်ပါ", style: "cancel", onPress: () => router.back() },
             {
-              text: "Slip ထုတ်မည်",
+              text: t.cancelBtn,
+              style: "cancel",
+              onPress: () => router.back(),
+            },
+            {
+              text: t.printSlipBtn,
               onPress: async () => {
                 await handlePrintSlip(documentId, checkoutItems);
                 router.back();
@@ -435,10 +322,13 @@ export default function PurchaseScreen() {
           { cancelable: false },
         );
       } else {
-        Alert.alert("အမှားအယွင်း", res.error);
+        Alert.alert(
+          t.errorTitle,
+          res.error || "Failed to save purchase receipt.",
+        );
       }
     } catch (err: any) {
-      Alert.alert("အမှားအယွင်း", err.message);
+      Alert.alert(t.errorTitle, parseFrappeError(err));
     } finally {
       setSubmitting(false);
     }
@@ -447,14 +337,10 @@ export default function PurchaseScreen() {
   const handleOpenScanner = async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
     setHasPermission(status === "granted");
-
     if (status === "granted") {
       setCameraModalVisible(true);
     } else {
-      Alert.alert(
-        "Permission Denied",
-        "ကျေးဇူးပြု၍ ကင်မရာအသုံးပြုခွင့်ကို Settings တွင် ဖွင့်ပေးပါ။",
-      );
+      Alert.alert(t.cameraPermissionDeniedTitle, t.cameraPermissionDeniedMsg);
     }
   };
 
@@ -469,36 +355,52 @@ export default function PurchaseScreen() {
     const matchedItem = items.find(
       (product) => product.name?.toLowerCase() === data.trim().toLowerCase(),
     );
-
     if (matchedItem) {
       setCart((prev) => ({
         ...prev,
         [matchedItem.name]: (prev[matchedItem.name] || 0) + 1,
       }));
       Alert.alert(
-        "Item Added",
-        `"${matchedItem.item_name}" ကို Cartထဲသို့ ထည့်ပြီးပါပြီ။`,
+        t.itemAddedAlertTitle,
+        t.itemAddedAlertMsg.replace("{{name}}", matchedItem.item_name || ""),
       );
     } else {
       Alert.alert(
-        "ရှာမတွေ့ပါ",
-        `ကုဒ် "${data}" နှင့် ကိုက်ညီသော ပစ္စည်း စာရင်းထဲတွင် မရှိပါ။`,
+        t.notFoundTitle,
+        t.notFoundBarcodeMsg.replace("{{code}}", data),
       );
     }
   };
 
-  // Memoized Search Optimization for Base Items
-  const filteredData = useMemo(() => {
-    return items.filter((item) => {
+  const sortedAndFilteredData = useMemo(() => {
+    let result = items.filter((item) => {
       const matchSearch =
         item.item_name?.toLowerCase().includes(search.toLowerCase()) ||
         item.name?.toLowerCase().includes(search.toLowerCase());
       const matchTab = activeTab === "All" || item.item_group === activeTab;
       return matchSearch && matchTab;
     });
-  }, [search, activeTab, items]);
 
-  // Memoized Filtering for Suppliers Modal
+    if (sortBy === "Name A→Z")
+      result.sort((a, b) =>
+        (a.item_name || "").localeCompare(b.item_name || ""),
+      );
+    else if (sortBy === "Name Z→A")
+      result.sort((a, b) =>
+        (b.item_name || "").localeCompare(a.item_name || ""),
+      );
+    else if (sortBy === "Code A→Z")
+      result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    else if (sortBy === "Code Z→A")
+      result.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+    else if (sortBy === "Group")
+      result.sort((a, b) =>
+        (a.item_group || "").localeCompare(b.item_group || ""),
+      );
+
+    return result;
+  }, [search, activeTab, items, sortBy]);
+
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(
       (s) =>
@@ -507,7 +409,6 @@ export default function PurchaseScreen() {
     );
   }, [supplierSearch, suppliers]);
 
-  // Memoized Filtering for Warehouse Modal
   const filteredWarehouses = useMemo(() => {
     return warehouses.filter(
       (w) =>
@@ -524,27 +425,114 @@ export default function PurchaseScreen() {
 
   const renderItem = ({ item }: { item: ItemType }) => {
     const currentQty = cart[item.name] || 0;
+    const isUomDropdownOpen = activeUomMenu === item.name;
+    const currentSelectedUnit =
+      selectedUoms[item.name] || item.stock_uom || "Nos";
+    const availableUnitsFromFrappe = Array.from(
+      new Set([item.stock_uom, ...(item.uoms?.map((u) => u.uom) || [])]),
+    ).filter(Boolean);
+
+    // Build full image URI — Frappe stores relative paths like /files/rice.jpg
+    const imageUri = item.image
+      ? item.image.startsWith("http")
+        ? item.image
+        : `${siteUrl}${item.image}`
+      : null;
 
     return (
-      <View style={[styles.card, currentQty > 0 && styles.activeCardBorder]}>
-        <Text style={styles.categoryText}>
-          {item.item_group?.toUpperCase()}
-        </Text>
+      <View
+        style={[styles.card, currentQty > 0 && { borderColor: themeColor }]}
+      >
+        {/* ITEM IMAGE OR FALLBACK PLACEHOLDER */}
+        {imageUri ? (
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.itemImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={[
+              styles.itemImagePlaceholder,
+              { backgroundColor: `${themeColor}10` },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="image-off-outline"
+              size={26}
+              color={`${themeColor}50`}
+            />
+          </View>
+        )}
+
+        {/* CARD ACCORDION CONTROLLER FOR FLOATING MENUS */}
+        <View style={styles.cardHeaderArea}>
+          <Text style={styles.categoryText}>
+            {item.item_group?.toUpperCase()}
+          </Text>
+
+          {/* FLOATING DROPDOWN FOR SELECTING UOM ALTERNATIVES */}
+          {isUomDropdownOpen && (
+            <View style={styles.uomFloatingDropdown}>
+              {availableUnitsFromFrappe.map((unit) => (
+                <TouchableOpacity
+                  key={unit}
+                  style={[
+                    styles.uomDropdownItem,
+                    currentSelectedUnit === unit && {
+                      backgroundColor: themeColor,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedUoms((prev) => ({ ...prev, [item.name]: unit }));
+                    setActiveUomMenu(null);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.uomDropdownItemText,
+                      currentSelectedUnit === unit && {
+                        color: "#fff",
+                        fontWeight: "700",
+                      },
+                    ]}
+                  >
+                    {unit}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
         <Text style={styles.productName} numberOfLines={1}>
           {item.item_name}
         </Text>
         <Text style={styles.codeText}>{item.name}</Text>
-        <View style={styles.stateBadge}>
-          <Text style={styles.stateBadgeText}>{item.stock_uom || "Nos"}</Text>
-        </View>
+
+        {/* UOM SELECTOR BADGE */}
+        <TouchableOpacity
+          style={[styles.stateBadge, { borderColor: `${themeColor}40` }]}
+          onPress={() => setActiveUomMenu(isUomDropdownOpen ? null : item.name)}
+        >
+          <Text style={[styles.stateBadgeText, { color: themeColor }]}>
+            {currentSelectedUnit}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={12}
+            color={themeColor}
+            style={{ marginLeft: 3 }}
+          />
+        </TouchableOpacity>
 
         {currentQty === 0 ? (
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, { backgroundColor: themeColor }]}
             onPress={() => handleSetQty(item.name, 1)}
           >
             <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.addButtonText}>ထည့်မည်</Text>
+            <Text style={styles.addButtonText}>{t.add}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.qtyRow}>
@@ -552,10 +540,8 @@ export default function PurchaseScreen() {
               style={styles.qtyButton}
               onPress={() => handleSetQty(item.name, currentQty - 1)}
             >
-              <Ionicons name="remove" size={22} color="#18A06A" />
+              <Ionicons name="remove" size={18} color={themeColor} />
             </TouchableOpacity>
-
-            {/* INPUT DIRECTLY IN THE GRID CELLS */}
             <TextInput
               keyboardType="numeric"
               style={styles.qtyInput}
@@ -566,12 +552,11 @@ export default function PurchaseScreen() {
               }}
               selectTextOnFocus
             />
-
             <TouchableOpacity
               style={styles.qtyButton}
               onPress={() => handleSetQty(item.name, currentQty + 1)}
             >
-              <Ionicons name="add" size={22} color="#18A06A" />
+              <Ionicons name="add" size={18} color={themeColor} />
             </TouchableOpacity>
           </View>
         )}
@@ -584,32 +569,33 @@ export default function PurchaseScreen() {
       <StatusBar barStyle="light-content" />
 
       {/* HEADER ROW */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: themeColor }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>📦 ကုန်လက်ခံလွှာ</Text>
+          <Text style={styles.headerTitle}>{t.purchaseReceipt}</Text>
         </View>
-
         <TouchableOpacity
           style={styles.cartButton}
           onPress={() => setCartModalVisible(true)}
         >
-          <Text style={styles.cartText}>Cart</Text>
+          <Text style={styles.cartText}>{t.cart}</Text>
           <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{totalCartCount}</Text>
+            <Text style={[styles.cartBadgeText, { color: themeColor }]}>
+              {totalCartCount}
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#18A06A" />
+          <ActivityIndicator size="large" color={themeColor} />
         </View>
       ) : (
         <>
-          {/* SELECTION CONFIGURATION BOXES */}
+          {/* FORM SECTION */}
           <View style={styles.formSection}>
             <TouchableOpacity
               style={styles.inputBox}
@@ -623,7 +609,7 @@ export default function PurchaseScreen() {
               >
                 {selectedSupplier
                   ? selectedSupplier.supplier_name
-                  : "-- Supplier ရွေးပါ --"}
+                  : t.selectSupplierPlaceholder}
               </Text>
               <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
@@ -636,14 +622,14 @@ export default function PurchaseScreen() {
                 <MaterialCommunityIcons
                   name="store-outline"
                   size={22}
-                  color="#18A06A"
+                  color={themeColor}
                 />
                 <View style={{ marginLeft: 8, flex: 1 }}>
-                  <Text style={styles.storeLabel}>Stores</Text>
+                  <Text style={styles.storeLabel}>{t.storesLabel}</Text>
                   <Text style={styles.storeText} numberOfLines={1}>
                     {selectedWarehouse
                       ? `- ${selectedWarehouse.warehouse_name}`
-                      : "- ရွေးချယ်ရန်"}
+                      : t.selectWarehousePlaceholder}
                   </Text>
                 </View>
                 <Ionicons name="chevron-down" size={16} color="#6B7280" />
@@ -661,7 +647,9 @@ export default function PurchaseScreen() {
             {showDatePicker && (
               <View
                 style={
-                  Platform.OS === "ios" ? styles.iosDatePickerContainer : null
+                  Platform.OS === "ios"
+                    ? styles.iosDatePickerContainer
+                    : undefined
                 }
               >
                 <DateTimePicker
@@ -675,84 +663,130 @@ export default function PurchaseScreen() {
                     style={styles.iosDoneButton}
                     onPress={() => setShowDatePicker(false)}
                   >
-                    <Text style={styles.iosDoneButtonText}>Done</Text>
+                    <Text style={styles.iosDoneButtonText}>{t.done}</Text>
                   </TouchableOpacity>
                 )}
               </View>
             )}
           </View>
 
-          {/* SEARCH COMPONENT ROW */}
+          {/* SEARCH & SORT BAR */}
           <View style={styles.searchWrapper}>
             <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={22} color="#9CA3AF" />
+              <Ionicons name="search-outline" size={20} color="#9CA3AF" />
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Item ရှာ..."
+                placeholder={t.searchItemPlaceholder}
                 placeholderTextColor="#9CA3AF"
                 style={styles.searchInput}
               />
             </View>
+
             <TouchableOpacity
-              style={styles.filterButton}
+              style={[
+                styles.scannerIconButton,
+                { backgroundColor: `${themeColor}15` },
+              ]}
               onPress={handleOpenScanner}
             >
-              <Ionicons name="qr-code-outline" size={24} color="#fff" />
+              <Ionicons name="qr-code-outline" size={22} color={themeColor} />
             </TouchableOpacity>
+
+            <View style={{ zIndex: 999 }}>
+              <TouchableOpacity
+                style={[styles.dropdownTrigger, { borderColor: themeColor }]}
+                onPress={() => setSortMenuVisible(!sortMenuVisible)}
+              >
+                <Text style={styles.dropdownTriggerText}>
+                  {sortOptions.find((o) => o.id === sortBy)?.label}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={14}
+                  color="#6B7280"
+                  style={{ marginLeft: 4 }}
+                />
+              </TouchableOpacity>
+
+              {sortMenuVisible && (
+                <View style={styles.dropdownFloatingMenu}>
+                  {sortOptions.map((option) => {
+                    const isSelected = sortBy === option.id;
+                    return (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={[
+                          styles.dropdownMenuItem,
+                          isSelected && { backgroundColor: themeColor },
+                        ]}
+                        onPress={() => {
+                          setSortBy(option.id);
+                          setSortMenuVisible(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownMenuText,
+                            isSelected && { color: "#fff", fontWeight: "700" },
+                          ]}
+                        >
+                          {isSelected ? `✓  ${option.label}` : option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           </View>
 
-          {/* CLASSIFICATION TABS */}
+          {/* TABS */}
           <View style={styles.tabsContainer}>
-            <TouchableOpacity
-              style={[
-                styles.inactiveTab,
-                activeTab === "All" && styles.activeTab,
-              ]}
-              onPress={() => setActiveTab("All")}
-            >
-              <Text
+            {["All", "Raw Materials"].map((tab) => (
+              <TouchableOpacity
+                key={tab}
                 style={[
-                  styles.inactiveTabText,
-                  activeTab === "All" && styles.activeTabText,
+                  styles.inactiveTab,
+                  activeTab === tab && [
+                    styles.activeTab,
+                    {
+                      borderColor: themeColor,
+                      backgroundColor: `${themeColor}12`,
+                    },
+                  ],
                 ]}
+                onPress={() => setActiveTab(tab)}
               >
-                All
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.inactiveTab,
-                activeTab === "Raw Materials" && styles.activeTab,
-              ]}
-              onPress={() => setActiveTab("Raw Materials")}
-            >
-              <Text
-                style={[
-                  styles.inactiveTabText,
-                  activeTab === "Raw Materials" && styles.activeTabText,
-                ]}
-              >
-                Raw Materials
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.inactiveTabText,
+                    activeTab === tab && [
+                      styles.activeTabText,
+                      { color: themeColor },
+                    ],
+                  ]}
+                >
+                  {tab === "All" ? t.allTab : t.rawMaterialsTab}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
-          {/* MAIN ITEM COMPONENT GRID */}
+          {/* ITEM GRID */}
           <FlatList
-            data={filteredData}
+            data={sortedAndFilteredData}
             renderItem={renderItem}
             keyExtractor={(item) => item.name}
             numColumns={2}
             columnWrapperStyle={{ justifyContent: "space-between" }}
-            contentContainerStyle={{ padding: 14, paddingBottom: 60 }}
+            contentContainerStyle={{ padding: 14, paddingBottom: 90 }}
             showsVerticalScrollIndicator={false}
           />
         </>
       )}
 
-      {/* CAMERA VIEW SCANNER MODAL OVERLAY SHEET */}
+      {/* CAMERA MODAL */}
       <Modal
         visible={cameraModalVisible}
         animationType="slide"
@@ -768,13 +802,37 @@ export default function PurchaseScreen() {
           />
           <View style={styles.cameraOverlayMask}>
             <View style={styles.reticleTargetFrame}>
-              <View style={[styles.cornerMarker, styles.topLeftCorner]} />
-              <View style={[styles.cornerMarker, styles.topRightCorner]} />
-              <View style={[styles.cornerMarker, styles.bottomLeftCorner]} />
-              <View style={[styles.cornerMarker, styles.bottomRightCorner]} />
+              <View
+                style={[
+                  styles.cornerMarker,
+                  styles.topLeftCorner,
+                  { borderColor: themeColor },
+                ]}
+              />
+              <View
+                style={[
+                  styles.cornerMarker,
+                  styles.topRightCorner,
+                  { borderColor: themeColor },
+                ]}
+              />
+              <View
+                style={[
+                  styles.cornerMarker,
+                  styles.bottomLeftCorner,
+                  { borderColor: themeColor },
+                ]}
+              />
+              <View
+                style={[
+                  styles.cornerMarker,
+                  styles.bottomRightCorner,
+                  { borderColor: themeColor },
+                ]}
+              />
             </View>
             <Text style={styles.cameraInstructionsText}>
-              ပစ္စည်းပေါ်ရှိ Barcode / QR Code ကို စတုရန်းကွက်အတွင်း ထားပေးပါ
+              {t.barcodeInstructions}
             </Text>
           </View>
           <TouchableOpacity
@@ -786,7 +844,7 @@ export default function PurchaseScreen() {
         </View>
       </Modal>
 
-      {/* SEARCHABLE SUPPLIER DROPDOWN PICKER */}
+      {/* SUPPLIER PICKER MODAL */}
       <Modal visible={supplierModalVisible} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
@@ -794,19 +852,18 @@ export default function PurchaseScreen() {
           onPress={() => setSupplierModalVisible(false)}
         >
           <View style={[styles.pickerModalContainer, { height: "70%" }]}>
-            <Text style={styles.modalHeaderTitle}>ကုန်သည် ရွေးချယ်ရန်</Text>
-
-            {/* Modal Search Implementation */}
+            <Text style={styles.modalHeaderTitle}>
+              {t.selectSupplierModalTitle}
+            </Text>
             <View style={styles.modalSearchBox}>
               <Ionicons name="search-outline" size={18} color="#9CA3AF" />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="ကုန်သည်အမည် ရှာရန်..."
+                placeholder={t.searchSupplierPlaceholder}
                 value={supplierSearch}
                 onChangeText={setSupplierSearch}
               />
             </View>
-
             <FlatList
               data={filteredSuppliers}
               keyExtractor={(item) => item.name!}
@@ -832,7 +889,7 @@ export default function PurchaseScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* SEARCHABLE WAREHOUSE DROPDOWN PICKER */}
+      {/* WAREHOUSE PICKER MODAL */}
       <Modal visible={warehouseModalVisible} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
@@ -841,20 +898,17 @@ export default function PurchaseScreen() {
         >
           <View style={[styles.pickerModalContainer, { height: "60%" }]}>
             <Text style={styles.modalHeaderTitle}>
-              သိုလှောင်ရုံ ရွေးချယ်ရန်
+              {t.selectWarehouseModalTitle}
             </Text>
-
-            {/* Store Modal Search Layout */}
             <View style={styles.modalSearchBox}>
               <Ionicons name="search-outline" size={18} color="#9CA3AF" />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="သိုလှောင်ရုံ ရှာရန်..."
+                placeholder={t.searchWarehousePlaceholder}
                 value={warehouseSearch}
                 onChangeText={setWarehouseSearch}
               />
             </View>
-
             <FlatList
               data={filteredWarehouses}
               keyExtractor={(item) => item.name}
@@ -878,7 +932,7 @@ export default function PurchaseScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* BOTTOM SHEET CART DETAILED MODAL */}
+      {/* CART BOTTOM SHEET MODAL */}
       <Modal visible={cartModalVisible} transparent animationType="slide">
         <TouchableOpacity
           style={styles.modalBottomOverlay}
@@ -888,7 +942,7 @@ export default function PurchaseScreen() {
           <View style={styles.cartBottomSheetContainer}>
             <View style={styles.pullBarIndicator} />
             <View style={styles.cartModalHeaderRow}>
-              <Text style={styles.cartModalTitleText}>🛒 Cart</Text>
+              <Text style={styles.cartModalTitleText}>🛒 {t.cart}</Text>
               <TouchableOpacity onPress={() => setCartModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
@@ -900,27 +954,71 @@ export default function PurchaseScreen() {
               contentContainerStyle={{ paddingVertical: 10 }}
               renderItem={({ item }) => {
                 const currentQty = cart[item.name] || 0;
+                const resolvedCartUom =
+                  selectedUoms[item.name] || item.stock_uom || "Nos";
+
+                // Build image URI for cart row thumbnail
+                const cartImageUri = item.image
+                  ? item.image.startsWith("http")
+                    ? item.image
+                    : `${siteUrl}${item.image}`
+                  : null;
+
                 return (
                   <View style={styles.cartItemRow}>
                     <View style={styles.cartItemDetailsLeft}>
-                      <View style={styles.itemIconContainer}>
-                        <MaterialCommunityIcons
-                          name="package-variant-closed"
-                          size={22}
-                          color="#18A06A"
+                      {/* THUMBNAIL IN CART */}
+                      {cartImageUri ? (
+                        <Image
+                          source={{ uri: cartImageUri }}
+                          style={styles.cartItemThumbnail}
+                          resizeMode="cover"
                         />
-                      </View>
-                      <View style={{ marginLeft: 12, flex: 1 }}>
-                        <Text style={styles.cartItemNameText}>
+                      ) : (
+                        <View
+                          style={[
+                            styles.itemIconContainer,
+                            { backgroundColor: `${themeColor}12` },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="package-variant-closed"
+                            size={22}
+                            color={themeColor}
+                          />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cartItemNameText} numberOfLines={1}>
                           {item.item_name}
                         </Text>
-                        <Text style={styles.cartItemSubText}>
-                          {item.name} · {item.stock_uom || "Nos"}
+                        <Text style={styles.cartItemCodeText}>
+                          {item.name} • {resolvedCartUom}
                         </Text>
                       </View>
+                    </View>
+
+                    <View style={styles.cartActionRowRight}>
+                      <View style={styles.cartQtyControlBadge}>
+                        <TouchableOpacity
+                          style={styles.cartQtyActionBtn}
+                          onPress={() => handleDecreaseCartQty(item.name)}
+                        >
+                          <Ionicons name="remove" size={16} color="#4B5563" />
+                        </TouchableOpacity>
+                        <Text style={styles.cartQtyDisplayNumberText}>
+                          {currentQty}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.cartQtyActionBtn}
+                          onPress={() => handleIncreaseCartQty(item.name)}
+                        >
+                          <Ionicons name="add" size={16} color="#4B5563" />
+                        </TouchableOpacity>
+                      </View>
                       <TouchableOpacity
+                        style={styles.cartTrashActionBtn}
                         onPress={() => handleRemoveEntireItem(item.name)}
-                        style={styles.trashIconWrapper}
                       >
                         <Ionicons
                           name="trash-outline"
@@ -929,56 +1027,51 @@ export default function PurchaseScreen() {
                         />
                       </TouchableOpacity>
                     </View>
-
-                    <View style={styles.cartQuantityStepperContainer}>
-                      <TouchableOpacity
-                        style={styles.stepperButton}
-                        onPress={() => handleDecreaseCartQty(item.name)}
-                      >
-                        <Ionicons name="remove" size={20} color="#18A06A" />
-                      </TouchableOpacity>
-
-                      {/* EDITABLE TEXT INPUT IN THE CART OVERLAY */}
-                      <TextInput
-                        keyboardType="numeric"
-                        style={styles.cartQtyInput}
-                        value={String(currentQty)}
-                        onChangeText={(text) => {
-                          const parsed = parseInt(
-                            text.replace(/[^0-9]/g, ""),
-                            10,
-                          );
-                          handleSetQty(item.name, isNaN(parsed) ? 0 : parsed);
-                        }}
-                        selectTextOnFocus
-                      />
-
-                      <TouchableOpacity
-                        style={styles.stepperButton}
-                        onPress={() => handleIncreaseCartQty(item.name)}
-                      >
-                        <Ionicons name="add" size={20} color="#18A06A" />
-                      </TouchableOpacity>
-                    </View>
                   </View>
                 );
               }}
             />
 
-            <TouchableOpacity
-              style={styles.submitReceiptButton}
-              onPress={handleSavePurchaseReceipt}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.submitReceiptText}>Submit Receipt</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.cartFooterActions}>
+              <TouchableOpacity
+                disabled={submitting}
+                style={[
+                  styles.checkoutConfirmBtn,
+                  { backgroundColor: themeColor },
+                  submitting && { opacity: 0.7 },
+                ]}
+                onPress={handleSavePurchaseReceipt}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.checkoutConfirmBtnText}>
+                      {t.addPurchase}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* FLOATING CART BUTTON */}
+      {totalCartCount > 0 && (
+        <TouchableOpacity
+          style={[styles.floatingCartFab, { backgroundColor: themeColor }]}
+          onPress={() => setCartModalVisible(true)}
+        >
+          <Ionicons name="cart" size={20} color="#fff" />
+          <Text style={styles.floatingCartText}>{t.cart}</Text>
+          <View style={styles.floatingCartBadge}>
+            <Text style={[styles.floatingCartBadgeText, { color: themeColor }]}>
+              {totalCartCount}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
@@ -986,276 +1079,316 @@ export default function PurchaseScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
   header: {
-    backgroundColor: "#18A06A",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   headerLeft: { flexDirection: "row", alignItems: "center" },
   headerTitle: {
-    color: "#fff",
     fontSize: 18,
     fontWeight: "700",
-    marginLeft: 10,
+    color: "#fff",
+    marginLeft: 12,
   },
   cartButton: {
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.22)",
-    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  cartText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  cartText: { fontSize: 13, fontWeight: "600", color: "#fff", marginRight: 6 },
   cartBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
     backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 6,
   },
-  cartBadgeText: { color: "#18A06A", fontSize: 13, fontWeight: "800" },
+  cartBadgeText: { fontSize: 11, fontWeight: "800" },
   formSection: {
+    padding: 14,
     backgroundColor: "#fff",
-    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
   inputBox: {
-    height: 52,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    backgroundColor: "#F9FAFB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
   },
-  inputText: { fontSize: 15, color: "#9CA3AF" },
-  row: {
-    flexDirection: "row",
-    marginTop: 14,
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+  inputText: { fontSize: 14, color: "#9CA3AF" },
+  row: { flexDirection: "row", justifyContent: "space-between" },
   storeBox: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    padding: 8,
-    marginRight: 8,
-    backgroundColor: "#FAFAFA",
-  },
-  storeLabel: { fontSize: 12, fontWeight: "700", color: "#6B7280" },
-  storeText: {
-    fontSize: 14,
-    color: "#111827",
-    fontWeight: "600",
-    marginTop: 1,
-  },
-  dateBox: {
-    width: 140,
-    height: 52,
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    width: "58%",
   },
-  dateText: { fontSize: 13, color: "#111827", fontWeight: "600" },
-  searchWrapper: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  storeLabel: { fontSize: 10, color: "#6B7280" },
+  storeText: { fontSize: 12, fontWeight: "600", color: "#111827" },
+  dateBox: {
     flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    width: "38%",
+  },
+  dateText: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  iosDatePickerContainer: {
+    backgroundColor: "#fff",
+    marginTop: 8,
+    borderRadius: 8,
+    paddingBottom: 10,
+  },
+  iosDoneButton: { alignItems: "flex-end", paddingRight: 16, paddingTop: 4 },
+  iosDoneButtonText: { fontSize: 16, fontWeight: "600", color: "#007AFF" },
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    marginTop: 12,
+    zIndex: 99,
   },
   searchBox: {
     flex: 1,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-  },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: "#111827" },
-  filterButton: {
-    width: 48,
-    height: 48,
+    backgroundColor: "#F3F4F6",
     borderRadius: 24,
-    backgroundColor: "#18A06A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 10,
-  },
-  tabsContainer: {
-    backgroundColor: "#fff",
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  activeTab: { backgroundColor: "#18A06A", borderColor: "#18A06A" },
-  activeTabText: { color: "#fff", fontWeight: "700" },
-  inactiveTab: {
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 18,
-    marginRight: 8,
-  },
-  inactiveTabText: { color: "#6B7280", fontSize: 14, fontWeight: "600" },
-  card: {
-    width: CARD_WIDTH,
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 14,
+    paddingHorizontal: 12,
+    height: 40,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  searchInput: { flex: 1, marginLeft: 6, fontSize: 14, color: "#111827" },
+  scannerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    height: 40,
+    marginLeft: 8,
+    backgroundColor: "#fff",
+  },
+  dropdownTriggerText: { fontSize: 13, color: "#111827", fontWeight: "500" },
+  dropdownFloatingMenu: {
+    position: "absolute",
+    top: 45,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    width: 145,
+    paddingVertical: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  dropdownMenuItem: { paddingHorizontal: 14, paddingVertical: 10 },
+  dropdownMenuText: { fontSize: 13, color: "#374151" },
+  tabsContainer: { flexDirection: "row", paddingHorizontal: 14, marginTop: 12 },
+  inactiveTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginRight: 8,
+  },
+  activeTab: { borderWidth: 1.5 },
+  inactiveTabText: { fontSize: 13, color: "#6B7280", fontWeight: "500" },
+  activeTabText: { fontWeight: "700" },
+
+  // Item card
+  card: {
+    backgroundColor: "#fff",
+    width: CARD_WIDTH,
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  activeCardBorder: { borderColor: "#18A06A", borderWidth: 1.5 },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#9CA3AF",
-    marginBottom: 6,
-  },
-  productName: { fontSize: 15, fontWeight: "800", color: "#111827" },
-  codeText: { fontSize: 12, color: "#9CA3AF", marginTop: 4, marginBottom: 10 },
-  stateBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  // 👇 Item image styles
+  itemImage: {
+    width: "100%",
+    height: 90,
     borderRadius: 8,
-    backgroundColor: "#E8F7F0",
+    marginBottom: 8,
+  },
+  itemImagePlaceholder: {
+    width: "100%",
+    height: 90,
+    borderRadius: 8,
+    marginBottom: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    marginBottom: 4,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  codeText: { fontSize: 11, color: "#6B7280", marginBottom: 6 },
+  stateBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     marginBottom: 12,
   },
-  stateBadgeText: { color: "#18A06A", fontSize: 11, fontWeight: "700" },
+  stateBadgeText: { fontSize: 10, fontWeight: "600", color: "#4B5563" },
   addButton: {
-    backgroundColor: "#18A06A",
-    borderRadius: 10,
-    height: 38,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    height: 36,
+    borderRadius: 8,
   },
   addButtonText: {
     color: "#fff",
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     marginLeft: 4,
   },
   qtyRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 10,
-    height: 38,
-    paddingHorizontal: 4,
+    height: 36,
   },
   qtyButton: {
-    width: 30,
-    height: 30,
+    width: 34,
+    height: 34,
     borderRadius: 8,
-    backgroundColor: "#fff",
-    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
   },
-
-  // Custom text inputs within controllers
   qtyInput: {
-    flex: 1,
+    width: 40,
     textAlign: "center",
     fontSize: 15,
     fontWeight: "700",
     color: "#111827",
-    paddingVertical: 0,
+    padding: 0,
   },
-  cartQtyInput: {
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    paddingHorizontal: 6,
-    minWidth: 32,
-    paddingVertical: 0,
+  cardHeaderArea: {
+    position: "relative",
+    zIndex: 5,
+    minHeight: 18,
+    justifyContent: "center",
+    marginBottom: 2,
   },
-
-  iosDatePickerContainer: {
-    backgroundColor: "#fff",
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    overflow: "hidden",
-  },
-  iosDoneButton: {
-    alignItems: "flex-end",
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  iosDoneButtonText: { color: "#18A06A", fontWeight: "700", fontSize: 16 },
-  cameraScreenContainer: { flex: 1, backgroundColor: "#000" },
-  cameraOverlayMask: {
+  uomFloatingDropdown: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
+    borderRadius: 10,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    zIndex: 99,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  uomDropdownItem: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 2,
+  },
+  uomDropdownItemText: { fontSize: 12, color: "#374151", textAlign: "center" },
+
+  // Camera
+  cameraScreenContainer: { flex: 1, backgroundColor: "#000" },
+  cameraOverlayMask: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  reticleTargetFrame: { width: 260, height: 260, position: "relative" },
-  cornerMarker: {
-    position: "absolute",
-    width: 24,
-    height: 24,
-    borderColor: "#18A06A",
+  reticleTargetFrame: { width: 240, height: 240, position: "relative" },
+  cornerMarker: { position: "absolute", width: 24, height: 24, borderWidth: 4 },
+  topLeftCorner: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
+  topRightCorner: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
   },
-  topLeftCorner: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4 },
-  topRightCorner: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4 },
   bottomLeftCorner: {
     bottom: 0,
     left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
   },
   bottomRightCorner: {
     bottom: 0,
     right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
   },
   cameraInstructionsText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "600",
     marginTop: 24,
     textAlign: "center",
-    paddingHorizontal: 30,
-    fontWeight: "600",
+    paddingHorizontal: 32,
   },
   closeCameraFabButton: {
     position: "absolute",
@@ -1268,48 +1401,45 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
+  // Modals
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
-    padding: 20,
+    alignItems: "center",
   },
   pickerModalContainer: {
     backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 5,
+    width: "90%",
+    borderRadius: 16,
+    padding: 16,
   },
   modalHeaderTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 16,
+    marginBottom: 12,
   },
-
-  // Custom Modal Search Layouts
   modalSearchBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F3F4F6",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 38,
     marginBottom: 12,
   },
-  modalSearchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: "#111827" },
-
+  modalSearchInput: { flex: 1, marginLeft: 6, fontSize: 14, color: "#111827" },
   pickerItem: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: "#E5E7EB",
   },
-  pickerMainText: { fontSize: 15, fontWeight: "600", color: "#111827" },
+  pickerMainText: { fontSize: 14, fontWeight: "600", color: "#111827" },
   pickerSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+
+  // Cart bottom sheet
   modalBottomOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -1317,76 +1447,141 @@ const styles = StyleSheet.create({
   },
   cartBottomSheetContainer: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 34,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 30,
     maxHeight: "80%",
   },
   pullBarIndicator: {
     width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "#E5E7EB",
+    height: 4,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 2,
     alignSelf: "center",
-    marginVertical: 10,
+    marginTop: 8,
+    marginBottom: 12,
   },
   cartModalHeaderRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    paddingBottom: 12,
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
-  cartModalTitleText: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  cartModalTitleText: { fontSize: 16, fontWeight: "700", color: "#111827" },
   cartItemRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14,
+    justifyContent: "space-between",
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderColor: "#F3F4F6",
   },
   cartItemDetailsLeft: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
     marginRight: 10,
+  },
+  // 👇 Cart thumbnail when image exists
+  cartItemThumbnail: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 12,
   },
   itemIconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 10,
-    backgroundColor: "#E8F7F0",
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 12,
   },
-  cartItemNameText: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  cartItemSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  trashIconWrapper: { padding: 6, marginLeft: 4 },
-  cartQuantityStepperContainer: {
+  cartItemNameText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 2,
+  },
+  cartItemCodeText: { fontSize: 12, color: "#6B7280" },
+  cartActionRowRight: { flexDirection: "row", alignItems: "center" },
+  cartQtyControlBadge: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F3F4F6",
     borderRadius: 8,
-    padding: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginRight: 12,
   },
-  stepperButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+  cartQtyActionBtn: {
+    padding: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cartQtyDisplayNumberText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+    paddingHorizontal: 8,
+    minWidth: 24,
+    textAlign: "center",
+  },
+  cartTrashActionBtn: {
+    padding: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cartFooterActions: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingTop: 14,
+  },
+  checkoutConfirmBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 46,
+    borderRadius: 8,
+  },
+  checkoutConfirmBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+
+  // Floating cart FAB
+  floatingCartFab: {
+    position: "absolute",
+    bottom: 24,
+    alignSelf: "center",
+    width: 160,
+    height: 46,
+    borderRadius: 23,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  floatingCartText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+    marginLeft: 6,
+    marginRight: 6,
+  },
+  floatingCartBadge: {
     backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
-  submitReceiptButton: {
-    backgroundColor: "#18A06A",
-    borderRadius: 14,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 20,
-  },
-  submitReceiptText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  floatingCartBadgeText: { fontSize: 11, fontWeight: "800" },
 });

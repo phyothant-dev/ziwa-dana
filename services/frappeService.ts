@@ -483,6 +483,9 @@ export interface PurchaseReceiptItem {
   item_name: string;
   qty: number;
   uom: string;
+  rate?: number; // add
+  amount?: number; // add
+  warehouse?: string; // add
 }
 
 export interface PurchaseReceiptType {
@@ -492,7 +495,12 @@ export interface PurchaseReceiptType {
   posting_date: string;
   grand_total: number;
   total_qty: number;
+  set_warehouse?: string; // add
   items?: PurchaseReceiptItem[];
+}
+export interface ItemUOMType {
+  uom: string;
+  conversion_factor: number;
 }
 
 export interface ItemType {
@@ -500,6 +508,9 @@ export interface ItemType {
   item_name: string;
   item_group: string;
   stock_uom: string;
+  image?: string; // 👈 add this
+
+  uoms?: ItemUOMType[]; // 👈 Add the UOM child table array here
 }
 
 export interface WarehouseType {
@@ -524,7 +535,7 @@ export const createSupplier = async (data: SupplierType) => {
     });
     return { success: true, data: response };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: false, error: parseFrappeError(error) };
   }
 };
 
@@ -580,20 +591,29 @@ export const getItems = async () => {
   try {
     await ensureAppInitialized();
     const db = getDb();
-    const items = await db.getDocList("Item", {
-      fields: ["name", "item_name", "item_group", "stock_uom"],
+
+    // First, get the list of item names
+    const itemNames = await db.getDocList("Item", {
+      fields: ["name"],
       limit: 100,
     });
+
+    // Then, fetch the full details for each to get the child table 'uoms'
+    const items = await Promise.all(
+      itemNames.map(async (i) => await db.getDoc("Item", i.name)),
+    );
+
+    console.log("Items with UOM details => ", items);
     return { success: true, data: items as ItemType[] };
   } catch (error: any) {
+    console.log("Get Items Error:", error);
     return { success: false, error: error.message };
   }
 };
-
 export const createPurchaseReceipt = async (
   supplier: string,
   warehouse: string,
-  items: { item_code: string; qty: number }[],
+  items: { item_code: string; qty: number; uom: string }[],
   postingDate: string,
 ) => {
   try {
@@ -602,6 +622,7 @@ export const createPurchaseReceipt = async (
     const itemRows = items.map((i) => ({
       item_code: i.item_code,
       qty: i.qty,
+      uom: i.uom,
       warehouse: warehouse,
       docstatus: 0,
     }));
@@ -612,12 +633,74 @@ export const createPurchaseReceipt = async (
     });
     return { success: true, data: response };
   } catch (error: any) {
-    return {
-      success: false,
-      error: error.message || "Failed to submit document",
-    };
+    // ✅ Frappe SDK nests the real error in these fields
+    let message = "Failed to submit document.";
+
+    if (error?._server_messages) {
+      // Frappe returns _server_messages as a JSON string array
+      try {
+        const parsed = JSON.parse(error._server_messages);
+        const inner = JSON.parse(parsed[0]);
+        message = inner.message || message;
+      } catch {
+        message = error._server_messages;
+      }
+    } else if (error?.exception) {
+      message = error.exception;
+    } else if (error?.message) {
+      message = error.message;
+    }
+
+    return { success: false, error: message };
   }
 };
+// ==============================
+// FRAPPE ERROR PARSER HELPER
+// ==============================
+export const parseFrappeError = (error: any): string => {
+  if (error?._server_messages) {
+    try {
+      const parsed = JSON.parse(error._server_messages);
+      const inner = JSON.parse(parsed[0]);
+      return inner.message || "Unknown server error.";
+    } catch {
+      return String(error._server_messages);
+    }
+  }
+  if (error?.exception) return error.exception;
+  if (error?.httpStatusText) return error.httpStatusText;
+  if (error?.message) return error.message;
+  return "An unexpected error occurred.";
+};
+// export const createPurchaseReceipt = async (
+//   supplier: string,
+//   warehouse: string,
+//   items: { item_code: string; qty: number; uom: string }[], // 👈 Added uom string here
+//   postingDate: string,
+// ) => {
+//   try {
+//     await ensureAppInitialized();
+//     const db = getDb();
+//     const itemRows = items.map((i) => ({
+//       item_code: i.item_code,
+//       qty: i.qty,
+//       uom: i.uom, // 👈 Explicitly pass chosen dynamic UOM string to ERPNext row schema
+//       warehouse: warehouse,
+//       docstatus: 0,
+//     }));
+//     const response = await db.createDoc("Purchase Receipt", {
+//       supplier: supplier,
+//       posting_date: postingDate,
+//       items: itemRows,
+//     });
+//     return { success: true, data: response };
+//   } catch (error: any) {
+//     return {
+//       success: false,
+//       error: error.message || "Failed to submit document",
+//     };
+//   }
+// };
 
 export const getWarehouses = async () => {
   try {
@@ -645,5 +728,68 @@ export const getPurchaseReceiptDetails = async (docName: string) => {
       success: false,
       error: error.message || "Failed to load receipt details",
     };
+  }
+};
+
+// Add this interface along with your other types
+export interface SupplierGroupType {
+  name: string;
+}
+
+// Add this function at the bottom of your services/frappeService.ts file
+// ==============================
+// GET SUPPLIER GROUPS
+// ==============================
+export const getSupplierGroups = async () => {
+  try {
+    console.log("Getting Supplier Groups...");
+    const db = getDb();
+
+    const groups = await db.getDocList("Supplier Group", {
+      fields: ["name"],
+      filters: [["is_group", "=", 0]], // Filters out main folder layout structures if necessary
+      limit: 50,
+    });
+
+    console.log("Supplier Groups Response => ", groups);
+    return { success: true, data: groups as SupplierGroupType[] };
+  } catch (error: any) {
+    console.log("Get Supplier Groups Error:", error);
+    return { success: false, error: parseFrappeError(error) };
+  }
+};
+
+// ==============================
+// GET SYSTEM DATE FORMAT
+// ==============================
+export const getSystemDateFormat = async (): Promise<string> => {
+  try {
+    await ensureAppInitialized();
+    const db = getDb();
+    const settings = await db.getDoc("System Settings", "System Settings");
+    // Frappe stores e.g. "dd-mm-yyyy" or "mm/dd/yyyy" or "yyyy-mm-dd"
+    return (settings as any).date_format || "dd-mm-yyyy";
+  } catch (error) {
+    return "dd-mm-yyyy"; // safe fallback
+  }
+};
+
+// ==============================
+// GET SYSTEM SETTINGS
+// ==============================
+export const getSystemSettings = async (): Promise<{
+  dateFormat: string;
+  numberFormat: string;
+}> => {
+  try {
+    await ensureAppInitialized();
+    const db = getDb();
+    const settings = await db.getDoc("System Settings", "System Settings");
+    return {
+      dateFormat: (settings as any).date_format || "dd-mm-yyyy",
+      numberFormat: (settings as any).number_format || "#,###.##",
+    };
+  } catch (error) {
+    return { dateFormat: "dd-mm-yyyy", numberFormat: "#,###.##" };
   }
 };

@@ -1,12 +1,13 @@
-// app/index.tsx
-
+import { translations } from "@/locales/index";
 import { initFrappeWithUrl, login } from "@/services/frappeService";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -24,6 +25,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState<string>("");
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  // Global Localization & Color State Hooks
+  const { language, themeColor } = useSettingsStore();
+  const t = translations[language] || translations["mm"];
 
   // Start with global boot loading state to prevent flickering text views on autologin
   const [loading, setLoading] = useState<boolean>(true);
@@ -92,7 +97,7 @@ export default function LoginScreen() {
       console.log("LOGIN RESPONSE => ", res);
 
       if (!res.success) {
-        alert(res.error || "Login Failed");
+        Alert.alert(t.errorTitle, res.error || "Login Failed");
         setLoading(false);
         return;
       }
@@ -115,21 +120,21 @@ export default function LoginScreen() {
       router.replace("/home");
     } catch (error) {
       console.log("Login Error Exception caught:", error);
-      alert("Something went wrong");
+      Alert.alert(t.errorTitle, "Something went wrong");
       setLoading(false);
     }
   };
 
   const validateUrl = (value: string): boolean => {
     if (!value.trim()) {
-      setUrlError("ERPNext Site URL ထည့်ပါ");
+      setUrlError(t.urlRequiredError);
       return false;
     }
     if (
       !value.toLowerCase().startsWith("http://") &&
       !value.toLowerCase().startsWith("https://")
     ) {
-      setUrlError("URL သည် http:// သို့မဟုတ် https:// ဖြင့် စရမည်");
+      setUrlError(t.urlPrefixError);
       return false;
     }
     setUrlError("");
@@ -139,11 +144,11 @@ export default function LoginScreen() {
   const validateEmail = (value: string): boolean => {
     const emailRegex = /\S+@\S+\.\S+/;
     if (!value.trim()) {
-      setEmailError("အီးမေးလ် ထည့်ပါ");
+      setEmailError(t.emailRequiredError);
       return false;
     }
     if (!emailRegex.test(value)) {
-      setEmailError("မှန်ကန်သော အီးမေးလ် ထည့်ပါ");
+      setEmailError(t.emailInvalidError);
       return false;
     }
     setEmailError("");
@@ -152,11 +157,11 @@ export default function LoginScreen() {
 
   const validatePassword = (value: string): boolean => {
     if (!value.trim()) {
-      setPasswordError("စကားဝှက် ထည့်ပါ");
+      setPasswordError(t.passwordRequiredError);
       return false;
     }
     if (value.length < 6) {
-      setPasswordError("စကားဝှက် အနည်းဆုံး 6 လုံးရှိရမည်");
+      setPasswordError(t.passwordLengthError);
       return false;
     }
     setPasswordError("");
@@ -167,8 +172,8 @@ export default function LoginScreen() {
   if (loading && !email) {
     return (
       <View style={styles.splashCenter}>
-        <ActivityIndicator size="large" color="#16A26A" />
-        <Text style={styles.splashText}>အကောင့်စစ်ဆေးနေပါသည်...</Text>
+        <ActivityIndicator size="large" color={themeColor} />
+        <Text style={styles.splashText}>{t.checkingAccountOverlay}</Text>
       </View>
     );
   }
@@ -185,23 +190,24 @@ export default function LoginScreen() {
         >
           <View style={styles.card}>
             <View style={styles.header}>
-              <View style={styles.logoBox}>
+              <View style={[styles.logoBox, { backgroundColor: themeColor }]}>
                 <Ionicons name="add" size={24} color="#fff" />
               </View>
               <Text style={styles.logoText}>BCN Web Portal</Text>
             </View>
 
-            <Text style={styles.title}>ဝင်ရောက်ရန်</Text>
-            <Text style={styles.subtitle}>
-              BCN Web Portal သို့ ဝင်ရောက်ရန် သင်၏ Site URL နှင့်
-              အကောင့်အချက်အလက်များ ထည့်သွင်းပါ။
-            </Text>
+            <Text style={styles.title}>{t.loginTitle}</Text>
+            <Text style={styles.subtitle}>{t.loginSubtitle}</Text>
 
-            <Text style={styles.label}>Site URL</Text>
+            {/* SITE URL INPUT BOX */}
+            <Text style={styles.label}>{t.siteUrlLabel}</Text>
             <View
               style={[
                 styles.inputContainer,
                 urlError ? styles.inputError : null,
+                siteUrl.length > 0 && !urlError
+                  ? { borderColor: `${themeColor}60` }
+                  : null,
               ]}
             >
               <Ionicons name="globe-outline" size={20} color="#9CA3AF" />
@@ -221,11 +227,15 @@ export default function LoginScreen() {
             </View>
             {urlError ? <Text style={styles.errorText}>{urlError}</Text> : null}
 
-            <Text style={styles.label}>အီးမေးလ်</Text>
+            {/* EMAIL ADDRESS INPUT BOX */}
+            <Text style={styles.label}>{t.emailLabel}</Text>
             <View
               style={[
                 styles.inputContainer,
                 emailError ? styles.inputError : null,
+                email.length > 0 && !emailError
+                  ? { borderColor: `${themeColor}60` }
+                  : null,
               ]}
             >
               <Ionicons name="mail-outline" size={20} color="#9CA3AF" />
@@ -247,11 +257,15 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{emailError}</Text>
             ) : null}
 
-            <Text style={styles.label}>စကားဝှက်</Text>
+            {/* PASSWORD INPUT BOX */}
+            <Text style={styles.label}>{t.passwordLabel}</Text>
             <View
               style={[
                 styles.inputContainer,
                 passwordError ? styles.inputError : null,
+                password.length > 0 && !passwordError
+                  ? { borderColor: `${themeColor}60` }
+                  : null,
               ]}
             >
               <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" />
@@ -279,28 +293,41 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{passwordError}</Text>
             ) : null}
 
+            {/* REMEMBER ME & FORGOT LINK OPTIONS */}
             <View style={styles.row}>
               <TouchableOpacity
                 style={styles.rememberRow}
                 onPress={() => setRememberMe(!rememberMe)}
               >
                 <View
-                  style={[styles.checkbox, rememberMe && styles.checkboxActive]}
+                  style={[
+                    styles.checkbox,
+                    rememberMe && [
+                      styles.checkboxActive,
+                      { backgroundColor: themeColor, borderColor: themeColor },
+                    ],
+                  ]}
                 >
                   {rememberMe && (
                     <Ionicons name="checkmark" size={12} color="#fff" />
                   )}
                 </View>
-                <Text style={styles.rememberText}>မှတ်ထားပါ</Text>
+                <Text style={styles.rememberText}>{t.rememberMeLabel}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity>
-                <Text style={styles.forgotText}>စကားဝှက်မေ့သလား?</Text>
+                <Text style={[styles.forgotText, { color: themeColor }]}>
+                  {t.forgotPasswordLink}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
-              <Text style={styles.buttonText}>ဝင်ရောက်မည်</Text>
+            {/* MAIN ACTION SUBMIT BUTTON */}
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: themeColor }]}
+              onPress={handleLogin}
+            >
+              <Text style={styles.buttonText}>{t.loginBtn}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -322,7 +349,6 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: "#16A26A",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -384,19 +410,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 8,
   },
-  checkboxActive: { backgroundColor: "#111827", borderWidth: 0 },
+  checkboxActive: { borderWidth: 1 },
   rememberText: { fontSize: 14, color: "#374151" },
-  forgotText: { fontSize: 14, color: "#16A26A", fontWeight: "500" },
+  forgotText: { fontSize: 14, fontWeight: "500" },
   button: {
     height: 58,
     borderRadius: 16,
-    backgroundColor: "#16A26A",
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
 
-  // Session splash styles
+  // Session splash loader styles
   splashCenter: {
     flex: 1,
     backgroundColor: "#E9ECEB",
