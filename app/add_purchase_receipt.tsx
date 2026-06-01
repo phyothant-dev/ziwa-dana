@@ -315,7 +315,10 @@ export default function PurchaseScreen() {
               text: t.printSlipBtn,
               onPress: async () => {
                 await handlePrintSlip(documentId, checkoutItems);
-                router.back();
+                router.replace({
+                  pathname: "/purchase_receipt", // your list route
+                  params: { refresh: "true" },
+                });
               },
             },
           ],

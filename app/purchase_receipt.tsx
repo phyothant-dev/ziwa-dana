@@ -7,8 +7,8 @@ import {
 } from "@/services/frappeService";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -73,6 +73,7 @@ export default function MaterialPreOrderScreen() {
   const [loading, setLoading] = useState(false);
   const [dateFormat, setDateFormat] = useState("dd-mm-yyyy");
   const [numberFormat, setNumberFormat] = useState("#,###.##");
+  const { refresh } = useLocalSearchParams<{ refresh?: string }>();
 
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [receiptDetails, setReceiptDetails] =
@@ -96,11 +97,16 @@ export default function MaterialPreOrderScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    if (refresh) {
       loadPurchaseReceipts();
-    }, []),
-  );
+    }
+  }, [refresh]);
+
+  // Keep a one-time load on mount
+  useEffect(() => {
+    loadPurchaseReceipts();
+  }, []);
 
   const handleSelectReceipt = async (receiptSummary: any) => {
     setSelectedReceipt(receiptSummary);

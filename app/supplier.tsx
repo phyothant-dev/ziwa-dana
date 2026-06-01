@@ -4,7 +4,7 @@ import {
     getSupplierGroups,
     getSuppliers,
     parseFrappeError,
-    SupplierGroupType
+    SupplierGroupType,
 } from "@/services/frappeService";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -47,7 +47,9 @@ export default function SupplierScreen() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
   const [showModal, setShowModal] = useState(false);
-  const [showGroupModal, setShowGroupModal] = useState(false);
+
+  // ── replaced showGroupModal with an inline toggle ──
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierGroups, setSupplierGroups] = useState<SupplierGroupType[]>([]);
@@ -93,6 +95,23 @@ export default function SupplierScreen() {
     }
   };
 
+  const handlePhoneCall = async (phoneNumber: any) => {
+    const url = `tel:${phoneNumber}`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(
+          "Not Supported",
+          "This device or simulator cannot make phone calls.",
+        );
+      }
+    } catch (error) {
+      console.error("Failed to open phone URL:", error);
+    }
+  };
+
   const loadSuppliers = async () => {
     const res = await getSuppliers();
     if (res.success) {
@@ -130,13 +149,15 @@ export default function SupplierScreen() {
         await loadSuppliers();
         setSupplierName("");
         setMobileNo("");
+        setShowGroupPicker(false);
+        setGroupSearch("");
         if (supplierGroups.length > 0) setSupplierGroup(supplierGroups[0].name);
         setShowModal(false);
       } else {
         Alert.alert("Error", res.error);
       }
     } catch (e: any) {
-      Alert.alert("Error", parseFrappeError(e)); // 👈 was just console.log(e)
+      Alert.alert("Error", parseFrappeError(e));
     } finally {
       setLoading(false);
     }
@@ -150,9 +171,7 @@ export default function SupplierScreen() {
         item.mobile_no?.toLowerCase().includes(searchLower) ||
         item.supplier_group?.toLowerCase().includes(searchLower);
 
-      if (activeTab === "All") {
-        return matchSearch;
-      }
+      if (activeTab === "All") return matchSearch;
       return matchSearch && item.supplier_group === activeTab;
     });
   }, [search, suppliers, activeTab]);
@@ -196,7 +215,7 @@ export default function SupplierScreen() {
             {item.mobile_no ? (
               <TouchableOpacity
                 style={styles.phoneRow}
-                onPress={() => Linking.openURL(`tel:${item.mobile_no}`)}
+                onPress={() => handlePhoneCall(item.mobile_no)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons
@@ -336,19 +355,38 @@ export default function SupplierScreen() {
         <Text style={styles.floatingButtonText}>{t.newSupplier}</Text>
       </TouchableOpacity>
 
-      {/* ENTRY MODAL */}
-      <Modal visible={showModal} transparent animationType="slide">
+      {/* ENTRY MODAL — single modal, no nested modal inside */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowGroupPicker(false);
+          setGroupSearch("");
+          setShowModal(false);
+        }}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.handle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t.addNewSupplierTitle}</Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowGroupPicker(false);
+                  setGroupSearch("");
+                  setShowModal(false);
+                }}
+              >
                 <Ionicons name="close" size={30} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Supplier Name */}
               <Text style={styles.label}>
                 {t.supplierName}
                 <Text style={{ color: "red" }}> *</Text>
@@ -361,15 +399,22 @@ export default function SupplierScreen() {
                 style={styles.input}
               />
 
+              {/* Supplier Group — inline expandable picker, no nested Modal */}
               <Text style={styles.label}>
                 {t.supplierType}
                 <Text style={{ color: "red" }}> *</Text>
               </Text>
 
-              {/* MODIFIED SELECT STEP DROP DOWN INSTEAD OF STATIC CLICK TOGGLE */}
               <TouchableOpacity
-                style={styles.selectBox}
-                onPress={() => setShowGroupModal(true)}
+                style={[
+                  styles.selectBox,
+                  showGroupPicker && {
+                    borderBottomLeftRadius: 0,
+                    borderBottomRightRadius: 0,
+                    borderBottomColor: "transparent",
+                  },
+                ]}
+                onPress={() => setShowGroupPicker((v) => !v)}
               >
                 <View
                   style={{
@@ -383,10 +428,96 @@ export default function SupplierScreen() {
                       ? t.rawMaterial
                       : supplierGroup || "Select Group..."}
                   </Text>
-                  <Ionicons name="chevron-down" size={18} color="#6B7280" />
+                  <Ionicons
+                    name={showGroupPicker ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color="#6B7280"
+                  />
                 </View>
               </TouchableOpacity>
 
+              {/* Inline dropdown — rendered directly in the ScrollView */}
+              {showGroupPicker && (
+                <View style={styles.inlinePickerContainer}>
+                  {/* Search box inside dropdown */}
+                  <View style={styles.inlineSearchBox}>
+                    <Ionicons name="search-outline" size={16} color="#9CA3AF" />
+                    <TextInput
+                      style={styles.inlineSearchInput}
+                      placeholder="Search group..."
+                      placeholderTextColor="#9CA3AF"
+                      value={groupSearch}
+                      onChangeText={setGroupSearch}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                    />
+                    {groupSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setGroupSearch("")}>
+                        <Ionicons
+                          name="close-circle"
+                          size={16}
+                          color="#9CA3AF"
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Group items — plain .map(), no FlatList inside ScrollView */}
+                  {/* Group items — ScrollView with nestedScrollEnabled for iOS */}
+                  <ScrollView
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    style={{ maxHeight: 200 }}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {filteredGroups.length === 0 ? (
+                      <Text style={styles.noResultsText}>No groups found</Text>
+                    ) : (
+                      filteredGroups.map((item, index) => (
+                        <TouchableOpacity
+                          key={item.name}
+                          style={[
+                            styles.inlinePickerItem,
+                            index === filteredGroups.length - 1 && {
+                              borderBottomWidth: 0,
+                            },
+                            supplierGroup === item.name &&
+                              styles.inlinePickerItemSelected,
+                          ]}
+                          onPress={() => {
+                            setSupplierGroup(item.name);
+                            setGroupSearch("");
+                            setShowGroupPicker(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.inlinePickerItemText,
+                              supplierGroup === item.name && {
+                                color: themeColor,
+                                fontWeight: "700",
+                              },
+                            ]}
+                          >
+                            {item.name === "Raw Material"
+                              ? t.rawMaterial
+                              : item.name}
+                          </Text>
+                          {supplierGroup === item.name && (
+                            <Ionicons
+                              name="checkmark"
+                              size={18}
+                              color={themeColor}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Phone */}
               <Text style={styles.label}>{t.phoneNumber}</Text>
               <TextInput
                 value={mobileNo}
@@ -397,17 +528,18 @@ export default function SupplierScreen() {
                 keyboardType="phone-pad"
               />
 
+              {/* Currency */}
               <Text style={styles.label}>{t.currency}</Text>
               <View style={styles.pickerWrapper}>
                 <Picker
                   selectedValue={currency}
                   onValueChange={(itemValue) => {
                     setCurrency(itemValue);
-                    if (itemValue === "MMK") {
-                      setBuyingPriceList("Standard Buying (MMK)");
-                    } else {
-                      setBuyingPriceList("Standard Buying (USD)");
-                    }
+                    setBuyingPriceList(
+                      itemValue === "MMK"
+                        ? "Standard Buying (MMK)"
+                        : "Standard Buying (USD)",
+                    );
                   }}
                 >
                   <Picker.Item label={t.currencyMMK} value="MMK" />
@@ -415,6 +547,7 @@ export default function SupplierScreen() {
                 </Picker>
               </View>
 
+              {/* Price list (read-only) */}
               <Text style={styles.label}>{t.priceListType}</Text>
               <TouchableOpacity style={styles.selectBox} disabled>
                 <Text style={styles.selectText}>
@@ -423,7 +556,8 @@ export default function SupplierScreen() {
                     : t.standardBuyingUSD}
                 </Text>
               </TouchableOpacity>
-              <View style={{ height: 120 }} />
+
+              <View style={{ height: 160 }} />
             </ScrollView>
 
             <View style={styles.bottomArea}>
@@ -440,46 +574,6 @@ export default function SupplierScreen() {
             </View>
           </View>
         </View>
-      </Modal>
-
-      {/* SEARCHABLE SUPPLIER GROUP PICKER DIALOG OVERLAY */}
-      <Modal visible={showGroupModal} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowGroupModal(false)}
-        >
-          <View style={[styles.pickerModalContainer, { height: "60%" }]}>
-            <Text style={styles.modalHeaderTitle}>Select Supplier Group</Text>
-
-            <View style={styles.modalSearchBox}>
-              <Ionicons name="search-outline" size={18} color="#9CA3AF" />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="Search group..."
-                value={groupSearch}
-                onChangeText={setGroupSearch}
-              />
-            </View>
-
-            <FlatList
-              data={filteredGroups}
-              keyExtractor={(item) => item.name}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setSupplierGroup(item.name);
-                    setGroupSearch("");
-                    setShowGroupModal(false);
-                  }}
-                >
-                  <Text style={styles.pickerMainText}>{item.name}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
       </Modal>
 
       {/* DETAIL MODAL */}
@@ -533,9 +627,7 @@ export default function SupplierScreen() {
                 </Text>
                 <TouchableOpacity
                   disabled={!selectedSupplier?.mobile_no}
-                  onPress={() =>
-                    Linking.openURL(`tel:${selectedSupplier?.mobile_no}`)
-                  }
+                  onPress={() => handlePhoneCall(selectedSupplier?.mobile_no)}
                 >
                   <Text style={{ color: "#6B7280", fontSize: 16 }}>
                     {selectedSupplier?.mobile_no || t.noPhoneNumber}
@@ -803,9 +895,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     justifyContent: "center",
     marginHorizontal: 24,
-    marginBottom: 10,
+    marginBottom: 0,
   },
   selectText: { fontSize: 16, color: "#111827" },
+
+  // Inline group picker styles
+  inlinePickerContainer: {
+    marginHorizontal: 24,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: "#D1D5DB",
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  inlineSearchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    backgroundColor: "#F9FAFB",
+  },
+  inlineSearchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#111827",
+  },
+  inlinePickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  inlinePickerItemSelected: {
+    backgroundColor: "#F9FAFB",
+  },
+  inlinePickerItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#111827",
+  },
+  noResultsText: {
+    textAlign: "center",
+    color: "#9CA3AF",
+    fontSize: 14,
+    paddingVertical: 20,
+  },
+
   bottomArea: {
     paddingHorizontal: 24,
     paddingBottom: 24,
@@ -847,39 +991,4 @@ const styles = StyleSheet.create({
   },
   detailLabel: { fontSize: 16, color: "#6B7280", fontWeight: "500" },
   detailValue: { fontSize: 16, color: "#111827", fontWeight: "600" },
-
-  // NEW SELECT PICKER DIALOG OVERLAY DESIGN TOKENS
-  pickerModalContainer: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    width: "100%",
-    elevation: 5,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 14,
-    textAlign: "center",
-  },
-  modalSearchBox: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    marginBottom: 14,
-  },
-  modalSearchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: "#111827" },
-  pickerItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  pickerMainText: { fontSize: 16, fontWeight: "600", color: "#111827" },
 });
