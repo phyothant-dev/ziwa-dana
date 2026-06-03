@@ -1,6 +1,6 @@
-import { PurchaseReceiptDetailModal } from "@/components/PurchaseReceiptDetailModal";
+import { PurchaseReceiptDetailModal } from "@/components/purchaseReceiptComponents/PurchaseReceiptDetailModal";
 import ScreenWrapper from "@/components/ScreenWrapper";
-import { SupplierReceiptGroup } from "@/components/SupplierReceiptGroup";
+import { SupplierReceiptGroup } from "@/components/supplierComponents/SupplierReceiptGroup";
 import { translations } from "@/locales/index";
 import {
     getPurchaseReceiptDetails,

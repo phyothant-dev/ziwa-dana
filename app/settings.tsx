@@ -1,5 +1,5 @@
-import { CustomColorPickerModal } from "@/components/CustomColorPickerModal";
 import ScreenWrapper from "@/components/ScreenWrapper";
+import { CustomColorPickerModal } from "@/components/settingsComponents/CustomColorPickerModal";
 import { themeColors } from "@/constants/themeColors";
 import { translations } from "@/locales";
 import { useSettingsStore } from "@/stores/settingsStore";

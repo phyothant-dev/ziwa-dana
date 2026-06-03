@@ -1,7 +1,7 @@
-import { AddSupplierModal } from "@/components/AddSupplierModal";
 import ScreenWrapper from "@/components/ScreenWrapper";
-import { SupplierCard } from "@/components/SupplierCard";
-import { SupplierDetailModal } from "@/components/SupplierDetailModal";
+import { AddSupplierModal } from "@/components/supplierComponents/AddSupplierModal";
+import { SupplierCard } from "@/components/supplierComponents/SupplierCard";
+import { SupplierDetailModal } from "@/components/supplierComponents/SupplierDetailModal";
 import { translations } from "@/locales/index";
 import { parseFrappeError } from "@/services/parseFrappeErrorService";
 import {

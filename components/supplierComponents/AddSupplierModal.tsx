@@ -1,17 +1,17 @@
-import { InlineGroupPicker } from "@/components/InlineGroupPicker";
+import { InlineGroupPicker } from "@/components/supplierComponents/InlineGroupPicker";
 import { SupplierGroupType } from "@/types/supplierGroupType";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import React, { useMemo, useState } from "react";
 import {
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface AddSupplierModalProps {
@@ -87,7 +87,13 @@ export const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
   };
 
   const handleSave = async () => {
-    await onSave({ supplierName, supplierGroup, mobileNo, currency, buyingPriceList });
+    await onSave({
+      supplierName,
+      supplierGroup,
+      mobileNo,
+      currency,
+      buyingPriceList,
+    });
     // Parent controls success — reset on next open via initialGroup
     setSupplierName("");
     setMobileNo("");
