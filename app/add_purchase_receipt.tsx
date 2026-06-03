@@ -1,6 +1,7 @@
 import { translations } from "@/locales/index";
 import {
     createPurchaseReceipt,
+    debugGetSupplierDoc,
     getItems,
     getSuppliers,
     getWarehouses,
@@ -877,6 +878,7 @@ export default function PurchaseScreen() {
                     setSelectedSupplier(item);
                     setSupplierSearch("");
                     setSupplierModalVisible(false);
+                    debugGetSupplierDoc(item.name!); // 👈 no await needed, just fire it
                   }}
                 >
                   <Text style={styles.pickerMainText}>

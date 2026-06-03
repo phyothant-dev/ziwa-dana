@@ -8,7 +8,9 @@ import {
 } from "@/services/frappeService";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -35,6 +37,7 @@ type Supplier = {
   supplier_type?: string;
   default_currency?: string;
   mobile_no?: string;
+  image?: string; // 👈 Add this line
 };
 
 const { width } = Dimensions.get("window");
@@ -54,7 +57,7 @@ export default function SupplierScreen() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierGroups, setSupplierGroups] = useState<SupplierGroupType[]>([]);
   const [groupSearch, setGroupSearch] = useState("");
-
+  const [baseUrl, setBaseUrl] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [supplierGroup, setSupplierGroup] = useState("");
   const [mobileNo, setMobileNo] = useState("");
@@ -68,7 +71,16 @@ export default function SupplierScreen() {
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
+  useEffect(() => {
+    const getSiteUrl = async () => {
+      const savedUrl = await AsyncStorage.getItem("siteUrl");
+      if (savedUrl) {
+        // Cleans trailing slashes if any exist
+        setBaseUrl(savedUrl.replace(/\/+$/, ""));
+      }
+    };
+    getSiteUrl();
+  }, []);
   useEffect(() => {
     loadMasterData();
   }, []);
@@ -183,16 +195,33 @@ export default function SupplierScreen() {
   }, [groupSearch, supplierGroups]);
 
   const renderItem = ({ item }: { item: Supplier }) => {
+    const supplierImageUrl = item.image
+      ? item.image.startsWith("http")
+        ? item.image
+        : `${baseUrl}${item.image}`
+      : null;
     return (
       <TouchableOpacity
         style={styles.card}
         onPress={() => setSelectedSupplier(item)}
       >
         <View style={styles.leftSection}>
-          <View style={[styles.avatar, { backgroundColor: `${themeColor}15` }]}>
-            <Text style={[styles.avatarText, { color: themeColor }]}>
-              {item.supplier_name?.substring(0, 2).toUpperCase()}
-            </Text>
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: `${themeColor}15`, overflow: "hidden" },
+            ]}
+          >
+            {supplierImageUrl ? (
+              <Image
+                source={{ uri: supplierImageUrl }}
+                style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+              />
+            ) : (
+              <Text style={[styles.avatarText, { color: themeColor }]}>
+                {item.supplier_name?.substring(0, 2).toUpperCase()}
+              </Text>
+            )}
           </View>
 
           <View style={{ flex: 1 }}>
@@ -603,19 +632,35 @@ export default function SupplierScreen() {
                       borderRadius: 24,
                       marginRight: 0,
                       backgroundColor: `${themeColor}15`,
+                      overflow: "hidden",
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.avatarText,
-                      { fontSize: 36, color: themeColor },
-                    ]}
-                  >
-                    {selectedSupplier?.supplier_name
-                      ?.substring(0, 2)
-                      .toUpperCase()}
-                  </Text>
+                  {selectedSupplier?.image ? (
+                    <Image
+                      source={{
+                        uri: selectedSupplier.image.startsWith("http")
+                          ? selectedSupplier.image
+                          : `${baseUrl}${selectedSupplier.image}`,
+                      }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        resizeMode: "cover",
+                      }}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.avatarText,
+                        { fontSize: 36, color: themeColor },
+                      ]}
+                    >
+                      {selectedSupplier?.supplier_name
+                        ?.substring(0, 2)
+                        .toUpperCase()}
+                    </Text>
+                  )}
                 </View>
                 <Text
                   style={[
