@@ -1,16 +1,17 @@
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { translations } from "@/locales/index";
-import { initFrappeWithUrl, login } from "@/services/frappeService";
+import { initFrappeWithUrl } from "@/services/frappeService";
+import { login } from "@/services/loginService";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -26,14 +27,11 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // Global Localization & Color State Hooks
   const { language, themeColor } = useSettingsStore();
   const t = translations[language] || translations["mm"];
 
-  // Start with global boot loading state to prevent flickering text views on autologin
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Validation errors
   const [urlError, setUrlError] = useState<string>("");
   const [emailError, setEmailError] = useState<string>("");
   const [passwordError, setPasswordError] = useState<string>("");
@@ -42,41 +40,40 @@ export default function LoginScreen() {
     checkActiveSession();
   }, []);
 
-  // PERSISTENT SESSION MONITOR LAYER
   const checkActiveSession = async () => {
     try {
-      const savedRemember = await AsyncStorage.getItem("rememberMe");
-      const savedUrl = await AsyncStorage.getItem("siteUrl");
-      const savedEmail = await AsyncStorage.getItem("email");
-      const savedPassword = await AsyncStorage.getItem("password");
+      const savedRemember = await SecureStore.getItemAsync("rememberMe");
+      const savedUrl = await SecureStore.getItemAsync("siteUrl");
 
-      // Always populate siteUrl if it exists for user convenience
       if (savedUrl) {
         setSiteUrl(savedUrl);
       }
 
-      // ONLY AUTO-LOGIN IF "REMEMBER ME" WAS SAVED AS TRUE
-      if (savedRemember === "true" && savedUrl && savedEmail && savedPassword) {
-        console.log("Remember Me active. Auto-logging in...");
+      if (savedRemember === "true" && savedUrl) {
+        console.log("Remember Me active. Checking active session token...");
         setRememberMe(true);
-        setEmail(savedEmail);
-        setPassword(savedPassword);
 
-        // Initialize and authenticate behind the scenes
-        initFrappeWithUrl(savedUrl);
-        const res = await login(savedUrl, savedEmail, savedPassword);
+        const app = initFrappeWithUrl(savedUrl);
 
-        if (res.success) {
-          router.replace("/home");
-          return; // Stay on the loading/splash overlay while redirecting
-        } else {
-          console.log("Auto-login session expired or failed.");
+        try {
+          const user = await app.auth().getLoggedInUser();
+
+          if (user) {
+            console.log("Session token verified valid.");
+            router.replace("/home");
+            return;
+          }
+        } catch (sessionErr: any) {
+          console.log(
+            sessionErr.toString() ||
+              "Active session cookie has expired or was cleared.",
+          );
         }
       }
     } catch (error) {
       console.log("Session Initialization Error:", error);
     } finally {
-      setLoading(false); // Dismiss loading overlay so manual user can interact
+      setLoading(false);
     }
   };
 
@@ -102,19 +99,12 @@ export default function LoginScreen() {
         return;
       }
 
-      // Always save the Site URL so they don't have to type it again next time
-      await AsyncStorage.setItem("siteUrl", siteUrl.trim());
+      await SecureStore.setItemAsync("siteUrl", siteUrl.trim());
 
-      // SESSION CONDITION BASED ON REMEMBER ME CHECKSUM
       if (rememberMe) {
-        await AsyncStorage.setItem("rememberMe", "true");
-        await AsyncStorage.setItem("email", email.trim());
-        await AsyncStorage.setItem("password", password); // Stored to perform background re-auth
+        await SecureStore.setItemAsync("rememberMe", "true");
       } else {
-        // If unchecked, clear out credentials so they must re-type on next boot
-        await AsyncStorage.setItem("rememberMe", "false");
-        await AsyncStorage.removeItem("email");
-        await AsyncStorage.removeItem("password");
+        await SecureStore.setItemAsync("rememberMe", "false");
       }
 
       router.replace("/home");
@@ -168,7 +158,6 @@ export default function LoginScreen() {
     return true;
   };
 
-  // Global splash load wrapper layer
   if (loading && !email) {
     return (
       <View style={styles.splashCenter}>
@@ -183,7 +172,7 @@ export default function LoginScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ justifyContent: "center", flexGrow: 1 }}
@@ -199,7 +188,6 @@ export default function LoginScreen() {
             <Text style={styles.title}>{t.loginTitle}</Text>
             <Text style={styles.subtitle}>{t.loginSubtitle}</Text>
 
-            {/* SITE URL INPUT BOX */}
             <Text style={styles.label}>{t.siteUrlLabel}</Text>
             <View
               style={[
@@ -227,7 +215,6 @@ export default function LoginScreen() {
             </View>
             {urlError ? <Text style={styles.errorText}>{urlError}</Text> : null}
 
-            {/* EMAIL ADDRESS INPUT BOX */}
             <Text style={styles.label}>{t.emailLabel}</Text>
             <View
               style={[
@@ -257,7 +244,6 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{emailError}</Text>
             ) : null}
 
-            {/* PASSWORD INPUT BOX */}
             <Text style={styles.label}>{t.passwordLabel}</Text>
             <View
               style={[
@@ -293,7 +279,6 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{passwordError}</Text>
             ) : null}
 
-            {/* REMEMBER ME & FORGOT LINK OPTIONS */}
             <View style={styles.row}>
               <TouchableOpacity
                 style={styles.rememberRow}
@@ -322,7 +307,6 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* MAIN ACTION SUBMIT BUTTON */}
             <TouchableOpacity
               style={[styles.button, { backgroundColor: themeColor }]}
               onPress={handleLogin}
@@ -331,7 +315,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </ScreenWrapper>
     </KeyboardAvoidingView>
   );
 }
@@ -421,7 +405,6 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
 
-  // Session splash loader styles
   splashCenter: {
     flex: 1,
     backgroundColor: "#E9ECEB",

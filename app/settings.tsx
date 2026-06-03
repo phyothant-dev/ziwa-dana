@@ -1,3 +1,6 @@
+import { CustomColorPickerModal } from "@/components/CustomColorPickerModal";
+import ScreenWrapper from "@/components/ScreenWrapper";
+import { themeColors } from "@/constants/themeColors";
 import { translations } from "@/locales";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -5,7 +8,6 @@ import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
-    Modal,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -13,21 +15,6 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import ColorPicker from "react-native-wheel-color-picker";
-
-const themeColors = [
-  "#1D9E75",
-  "#0F9D69",
-  "#1785C1",
-  "#2F65E0",
-  "#5146E5",
-  "#7C3AED",
-  "#DB2777",
-  "#E52020",
-  "#DD7A00",
-  "#51607A",
-];
 
 export default function SettingsScreen() {
   const themeColor = useSettingsStore((state) => state.themeColor);
@@ -37,15 +24,11 @@ export default function SettingsScreen() {
   const textColorMode = useSettingsStore((state) => state.textColorMode);
   const setTextColorMode = useSettingsStore((state) => state.setTextColorMode);
 
-  // ── Local "pending" state — nothing is saved until the Save button is pressed ──
   const [pendingColor, setPendingColor] = useState(themeColor);
   const [pendingLanguage, setPendingLanguage] = useState(language);
   const [pendingTextColorMode, setPendingTextColorMode] =
     useState(textColorMode);
 
-  // loadSettings() in _layout.tsx is async — pending states above may have
-  // initialised with defaults before it resolved. Sync once when the real
-  // saved values arrive, but never again (so user edits are not overwritten).
   const synced = useRef(false);
   useEffect(() => {
     if (!synced.current) {
@@ -61,7 +44,6 @@ export default function SettingsScreen() {
   const previewTextColor =
     pendingTextColorMode === "dark" ? "#111827" : "#FFFFFF";
 
-  // ── Color picker modal ──
   const [showPicker, setShowPicker] = useState(false);
   const [tempColor, setTempColor] = useState(pendingColor);
 
@@ -79,7 +61,6 @@ export default function SettingsScreen() {
     setShowPicker(false);
   };
 
-  // ── Save — only here do we write to the store + AsyncStorage ──
   const handleSave = () => {
     setThemeColor(pendingColor);
     setLanguage(pendingLanguage);
@@ -98,7 +79,7 @@ export default function SettingsScreen() {
     <>
       <StatusBar barStyle="light-content" />
 
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper>
         {/* ── Header ── */}
         <View style={[styles.header, { backgroundColor: pendingColor }]}>
           <TouchableOpacity onPress={() => router.back()}>
@@ -330,66 +311,21 @@ export default function SettingsScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
+      </ScreenWrapper>
 
-      {/* ── Color Picker Modal ── */}
-      <Modal
-        visible={showPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={cancelPicker}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={cancelPicker}
-              >
-                <Ionicons name="close" size={22} color="#6B7280" />
-              </TouchableOpacity>
-
-              <Text style={styles.modalTitle}>
-                {pendingLanguage === "mm" ? "အရောင်ရွေးချယ်ပါ" : "Pick a Color"}
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.modalConfirmBtn, { backgroundColor: tempColor }]}
-                onPress={confirmColor}
-              >
-                <Ionicons name="checkmark" size={22} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalSwatchRow}>
-              <View
-                style={[styles.modalSwatch, { backgroundColor: tempColor }]}
-              />
-              <Text style={styles.modalHexText}>{tempColor.toUpperCase()}</Text>
-            </View>
-
-            <View style={styles.pickerWrap}>
-              <ColorPicker
-                color={tempColor}
-                onColorChange={(color) => setTempColor(color)}
-                thumbSize={30}
-                sliderSize={28}
-                noSnap
-                row={false}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <CustomColorPickerModal
+        isVisible={showPicker}
+        onClose={cancelPicker}
+        onConfirm={confirmColor}
+        tempColor={tempColor}
+        setTempColor={setTempColor}
+        pendingLanguage={pendingLanguage}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ECECEC",
-  },
   header: {
     height: 90,
     flexDirection: "row",

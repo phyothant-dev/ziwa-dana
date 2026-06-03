@@ -1,11 +1,14 @@
+import { PurchaseReceiptDetailModal } from "@/components/PurchaseReceiptDetailModal";
+import ScreenWrapper from "@/components/ScreenWrapper";
+import { SupplierReceiptGroup } from "@/components/SupplierReceiptGroup";
 import { translations } from "@/locales/index";
 import {
     getPurchaseReceiptDetails,
     getPurchaseReceipts,
-    getSystemSettings,
-    PurchaseReceiptType,
-} from "@/services/frappeService";
+} from "@/services/purchaseReceiptService";
+import { getSystemSettings } from "@/services/systemService";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { PurchaseReceiptType } from "@/types/purchaseReceiptType";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -13,8 +16,6 @@ import {
     ActivityIndicator,
     Dimensions,
     FlatList,
-    Modal,
-    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -22,7 +23,6 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 const isSmallDevice = width < 380;
@@ -103,7 +103,6 @@ export default function MaterialPreOrderScreen() {
     }
   }, [refresh]);
 
-  // Keep a one-time load on mount
   useEffect(() => {
     loadPurchaseReceipts();
   }, []);
@@ -149,97 +148,8 @@ export default function MaterialPreOrderScreen() {
     return Object.values(groups);
   }, [search, receipts, t.unknownSupplier]);
 
-  const renderSupplierGroup = ({ item }: { item: GroupedSupplierData }) => {
-    return (
-      <View style={styles.supplierBlock}>
-        {/* SUPPLIER HEADER */}
-        <View style={styles.topRow}>
-          <View style={styles.userSection}>
-            <View
-              style={[styles.avatar, { backgroundColor: `${themeColor}15` }]}
-            >
-              <Text style={[styles.avatarText, { color: themeColor }]}>
-                {item.avatar_short}
-              </Text>
-            </View>
-            <Text style={styles.userName}>{item.supplier_name}</Text>
-          </View>
-
-          <View style={styles.rightTop}>
-            <Text style={styles.countText}>
-              {t.countWithUnit.replace(
-                "{{count}}",
-                item.receipts_count.toString(),
-              )}
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.addButton,
-                {
-                  borderColor: `${themeColor}60`,
-                  backgroundColor: `${themeColor}08`,
-                },
-              ]}
-              onPress={() =>
-                router.push({
-                  pathname: "/add_purchase_receipt",
-                  params: { supplierName: item.supplier_name },
-                })
-              }
-            >
-              <Ionicons name="add" size={16} color={themeColor} />
-              <Text style={[styles.addButtonText, { color: themeColor }]}>
-                {t.add}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* INVOICE CARDS */}
-        {item.receipts.map((receipt) => (
-          <TouchableOpacity
-            key={receipt.name}
-            style={styles.card}
-            onPress={() => handleSelectReceipt(receipt)}
-          >
-            <View style={styles.cardTop}>
-              <Text style={styles.invoiceText}>{receipt.name}</Text>
-              <Text style={styles.dateText}>
-                {applyFrappeDateFormat(receipt.posting_date, dateFormat)}
-              </Text>
-            </View>
-            <View style={styles.cardBottom}>
-              <View
-                style={[
-                  styles.priceBadge,
-                  { backgroundColor: `${themeColor}15` },
-                ]}
-              >
-                <Text style={[styles.priceBadgeText, { color: themeColor }]}>
-                  {t.currencyFormat.replace(
-                    "{{amount}}",
-                    applyFrappeNumberFormat(
-                      Number(receipt.grand_total),
-                      numberFormat,
-                    ),
-                  )}
-                </Text>
-              </View>
-              <Text style={styles.itemQuantityText}>
-                {t.totalItemsCount.replace(
-                  "{{count}}",
-                  receipt.total_qty?.toString() || "0",
-                )}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
       <StatusBar barStyle="light-content" />
 
       {loading && receipts.length === 0 ? (
@@ -252,7 +162,18 @@ export default function MaterialPreOrderScreen() {
         <FlatList
           data={groupedData}
           keyExtractor={(item) => item.supplier_name}
-          renderItem={renderSupplierGroup}
+          renderItem={({ item }) => (
+            <SupplierReceiptGroup
+              item={item}
+              themeColor={themeColor}
+              translations={t}
+              dateFormat={dateFormat}
+              numberFormat={numberFormat}
+              applyFrappeDateFormat={applyFrappeDateFormat}
+              applyFrappeNumberFormat={applyFrappeNumberFormat}
+              onSelectReceipt={handleSelectReceipt}
+            />
+          )}
           showsVerticalScrollIndicator={false}
           onRefresh={loadPurchaseReceipts}
           refreshing={loading}
@@ -306,196 +227,22 @@ export default function MaterialPreOrderScreen() {
         />
       )}
 
-      {/* DETAIL MODAL */}
-      <Modal
-        visible={selectedReceipt !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
+      <PurchaseReceiptDetailModal
+        isVisible={selectedReceipt !== null}
+        onClose={() => {
           setSelectedReceipt(null);
           setReceiptDetails(null);
         }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.handle} />
-
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedReceipt?.name || t.receiptDetailTitle}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedReceipt(null);
-                  setReceiptDetails(null);
-                }}
-              >
-                <Ionicons name="close" size={28} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* META ROWS */}
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>{t.dateLabel}</Text>
-                <Text style={styles.metaValue}>
-                  {applyFrappeDateFormat(
-                    selectedReceipt?.posting_date,
-                    dateFormat,
-                  )}
-                </Text>
-              </View>
-
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>{t.supplierLabel}</Text>
-                <Text style={styles.metaValue}>
-                  {selectedReceipt?.supplier_name || selectedReceipt?.supplier}
-                </Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>{t.warehouseLabel}</Text>
-                <Text style={styles.metaValue}>
-                  {receiptDetails?.set_warehouse ||
-                    receiptDetails?.items?.[0]?.warehouse ||
-                    "-"}
-                </Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>{t.grandTotalLabel}</Text>
-                <Text
-                  style={[
-                    styles.metaValue,
-                    { color: themeColor, fontWeight: "700" },
-                  ]}
-                >
-                  {applyFrappeNumberFormat(
-                    Number(selectedReceipt?.grand_total),
-                    numberFormat,
-                  )}{" "}
-                  MMK
-                </Text>
-              </View>
-
-              {/* ITEMS SECTION */}
-              <Text style={styles.sectionTitle}>{t.itemsSectionTitle}</Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  paddingHorizontal: 20,
-                  paddingBottom: 8,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#F3F4F6",
-                }}
-              >
-                <Text
-                  style={{ fontSize: 13, fontWeight: "600", color: "#9CA3AF" }}
-                >
-                  {t.itemsSectionTitle}
-                </Text>
-                <Text
-                  style={{ fontSize: 13, fontWeight: "600", color: "#9CA3AF" }}
-                >
-                  {t.qtyLabel}
-                </Text>
-              </View>
-              {loadingDetails ? (
-                <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                  <ActivityIndicator size="small" color={themeColor} />
-                  <Text
-                    style={{ color: "#6B7280", fontSize: 13, marginTop: 8 }}
-                  >
-                    {t.loadingItemsText}
-                  </Text>
-                </View>
-              ) : receiptDetails?.items && receiptDetails.items.length > 0 ? (
-                <>
-                  {receiptDetails.items.map((item: any, index: number) => (
-                    <View key={index} style={styles.itemRow}>
-                      {/* LEFT: name, code, qty x rate expression */}
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.itemNameText}>
-                          {item.item_name || item.item_code}
-                        </Text>
-                        <Text style={styles.itemCodeText}>
-                          {item.item_code}
-                        </Text>
-                        {/* 👇 qty × rate = amount expression */}
-                        <Text style={styles.itemExpressionText}>
-                          {item.qty} {item.uom || "Nos"}
-                          {"  ×  "}
-                          {applyFrappeNumberFormat(
-                            Number(item.rate || 0),
-                            numberFormat,
-                          )}
-                          {"  =  "}
-                          <Text style={styles.itemExpressionTotal}>
-                            {applyFrappeNumberFormat(
-                              Number(item.amount || 0),
-                              numberFormat,
-                            )}{" "}
-                            MMK
-                          </Text>
-                        </Text>
-                      </View>
-
-                      {/* RIGHT: qty badge + line total */}
-                      <View style={styles.itemRightCol}>
-                        <View
-                          style={[
-                            styles.qtyBadge,
-                            { backgroundColor: `${themeColor}12` },
-                          ]}
-                        >
-                          <Text
-                            style={[styles.qtyBadgeText, { color: themeColor }]}
-                          >
-                            {item.qty} {item.uom || "Nos"}
-                          </Text>
-                        </View>
-                        <Text style={styles.itemAmountText}>
-                          {applyFrappeNumberFormat(
-                            Number(item.amount || 0),
-                            numberFormat,
-                          )}
-                        </Text>
-                        <Text style={styles.itemAmountCurrency}>MMK</Text>
-                      </View>
-                    </View>
-                  ))}
-
-                  {/* GRAND TOTAL FOOTER ROW */}
-                  <View style={styles.totalFooterRow}>
-                    <Text style={styles.totalFooterLabel}>
-                      {t.grandTotalLabel}
-                    </Text>
-                    <Text
-                      style={[styles.totalFooterValue, { color: themeColor }]}
-                    >
-                      {applyFrappeNumberFormat(
-                        receiptDetails.items.reduce(
-                          (sum, i: any) => sum + Number(i.amount || 0),
-                          0,
-                        ),
-                        numberFormat,
-                      )}{" "}
-                      MMK
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                  <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
-                    {t.noItemsText}
-                  </Text>
-                </View>
-              )}
-
-              <View style={{ height: 60 }} />
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        selectedReceipt={selectedReceipt}
+        receiptDetails={receiptDetails}
+        loadingDetails={loadingDetails}
+        themeColor={themeColor}
+        translations={t}
+        dateFormat={dateFormat}
+        numberFormat={numberFormat}
+        applyFrappeDateFormat={applyFrappeDateFormat}
+        applyFrappeNumberFormat={applyFrappeNumberFormat}
+      />
 
       {/* FLOAT BUTTON */}
       <TouchableOpacity
@@ -505,7 +252,7 @@ export default function MaterialPreOrderScreen() {
         <Ionicons name="add" size={24} color="#fff" />
         <Text style={styles.floatingButtonText}>{t.addPurchaseReceiptBtn}</Text>
       </TouchableOpacity>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
@@ -692,7 +439,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  // Item row with price breakdown
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -737,7 +483,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // Grand total footer inside items section
   totalFooterRow: {
     flexDirection: "row",
     justifyContent: "space-between",

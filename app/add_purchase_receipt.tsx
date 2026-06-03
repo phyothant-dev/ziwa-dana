@@ -1,18 +1,15 @@
 import { translations } from "@/locales/index";
-import {
-    createPurchaseReceipt,
-    debugGetSupplierDoc,
-    getItems,
-    getSuppliers,
-    getWarehouses,
-    ItemType,
-    parseFrappeError,
-    SupplierType,
-    WarehouseType,
-} from "@/services/frappeService";
+import { debugGetSupplierDoc } from "@/services/frappeService";
+import { getItems } from "@/services/itemService";
+import { parseFrappeError } from "@/services/parseFrappeErrorService";
+import { createPurchaseReceipt } from "@/services/purchaseReceiptService";
+import { getSuppliers } from "@/services/supplierService";
+import { getWarehouses } from "@/services/warehouseService";
+
 import { useSettingsStore } from "@/stores/settingsStore";
+import * as SecureStore from "expo-secure-store";
+
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, {
     DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -36,6 +33,10 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ItemType } from "@/types/itemType";
+import { SupplierType } from "@/types/supplierType";
+import { WarehouseType } from "@/types/warehouseType";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 44) / 2;
@@ -89,8 +90,7 @@ export default function PurchaseScreen() {
   ];
   useEffect(() => {
     loadSettings();
-    // Load saved site URL for building image paths
-    AsyncStorage.getItem("siteUrl").then((url) => {
+    SecureStore.getItemAsync("siteUrl").then((url) => {
       if (url) setSiteUrl(url);
     });
     loadFormMasterData();
@@ -436,7 +436,6 @@ export default function PurchaseScreen() {
       new Set([item.stock_uom, ...(item.uoms?.map((u) => u.uom) || [])]),
     ).filter(Boolean);
 
-    // Build full image URI — Frappe stores relative paths like /files/rice.jpg
     const imageUri = item.image
       ? item.image.startsWith("http")
         ? item.image
@@ -878,7 +877,7 @@ export default function PurchaseScreen() {
                     setSelectedSupplier(item);
                     setSupplierSearch("");
                     setSupplierModalVisible(false);
-                    debugGetSupplierDoc(item.name!); // 👈 no await needed, just fire it
+                    debugGetSupplierDoc(item.name!);
                   }}
                 >
                   <Text style={styles.pickerMainText}>
@@ -962,7 +961,6 @@ export default function PurchaseScreen() {
                 const resolvedCartUom =
                   selectedUoms[item.name] || item.stock_uom || "Nos";
 
-                // Build image URI for cart row thumbnail
                 const cartImageUri = item.image
                   ? item.image.startsWith("http")
                     ? item.image
@@ -1236,7 +1234,6 @@ const styles = StyleSheet.create({
   inactiveTabText: { fontSize: 13, color: "#6B7280", fontWeight: "500" },
   activeTabText: { fontWeight: "700" },
 
-  // Item card
   card: {
     backgroundColor: "#fff",
     width: CARD_WIDTH,
@@ -1251,7 +1248,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  // 👇 Item image styles
   itemImage: {
     width: "100%",
     height: 90,
@@ -1359,7 +1355,6 @@ const styles = StyleSheet.create({
   },
   uomDropdownItemText: { fontSize: 12, color: "#374151", textAlign: "center" },
 
-  // Camera
   cameraScreenContainer: { flex: 1, backgroundColor: "#000" },
   cameraOverlayMask: {
     ...StyleSheet.absoluteFillObject,
@@ -1407,7 +1402,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Modals
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -1444,7 +1438,6 @@ const styles = StyleSheet.create({
   pickerMainText: { fontSize: 14, fontWeight: "600", color: "#111827" },
   pickerSubText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
 
-  // Cart bottom sheet
   modalBottomOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -1488,7 +1481,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 10,
   },
-  // 👇 Cart thumbnail when image exists
   cartItemThumbnail: {
     width: 40,
     height: 40,
@@ -1558,7 +1550,6 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
-  // Floating cart FAB
   floatingCartFab: {
     position: "absolute",
     bottom: 24,

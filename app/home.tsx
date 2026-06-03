@@ -1,66 +1,73 @@
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { translations } from "@/locales";
+import { frappe } from "@/services/frappeService";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
   const [email, setEmail] = useState<string>("");
   const [avatarAbbr, setAvatarAbbr] = useState<string>("??");
 
-  // Extract values directly from store
   const { language, themeColor, loadSettings } = useSettingsStore();
 
-  // Clean translation helper
   const t = translations[language];
-
-  // Sync settings and metadata on mount
   useEffect(() => {
     loadSettings();
 
     const loadUserData = async () => {
       try {
-        const storedEmail = await AsyncStorage.getItem("email");
-        if (storedEmail) {
-          setEmail(storedEmail);
+        if (frappe) {
+          const loggedInUser = await frappe.auth().getLoggedInUser();
 
-          const cleanName = storedEmail.split("@")[0];
-          if (cleanName.length >= 2) {
-            setAvatarAbbr(cleanName.substring(0, 2).toUpperCase());
-          } else {
-            setAvatarAbbr(cleanName.toUpperCase());
+          if (loggedInUser) {
+            setEmail(loggedInUser);
+
+            const cleanName = loggedInUser.split("@")[0];
+            if (cleanName.length >= 2) {
+              setAvatarAbbr(cleanName.substring(0, 2).toUpperCase());
+            } else {
+              setAvatarAbbr(cleanName.toUpperCase());
+            }
           }
         }
       } catch (error) {
-        console.log("Error loading user profile metadata:", error);
+        console.log(
+          "Error loading user profile from secure network session:",
+          error,
+        );
       }
     };
 
     loadUserData();
   }, []);
 
-  const handleLogout = async (): Promise<void> => {
+  const handleLogout = async () => {
     try {
-      await AsyncStorage.removeItem("rememberMe");
-      await AsyncStorage.removeItem("email");
-      await AsyncStorage.removeItem("password");
+      console.log("Initiating session tear-down procedure...");
+
+      if (frappe) {
+        await frappe.auth().logout();
+      }
+
+      await SecureStore.setItemAsync("rememberMe", "false");
 
       router.replace("/");
     } catch (error) {
-      console.log(error);
+      console.log("Logout routine fault:", error);
+      router.replace("/");
     }
   };
-
   return (
     <>
       <StatusBar style="dark" />
 
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
+      <ScreenWrapper>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={[styles.logoBox, { backgroundColor: themeColor }]}>
@@ -89,12 +96,10 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Body */}
         <View style={styles.content}>
           <Text style={styles.title}>{t.welcome}</Text>
           <Text style={styles.subtitle}>{t.subtitle}</Text>
 
-          {/* Card 1 - Suppliers */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => {
@@ -119,7 +124,6 @@ export default function HomeScreen() {
             <Ionicons name="arrow-forward-outline" size={16} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Card 2 - Purchase Receipts */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => {
@@ -145,7 +149,6 @@ export default function HomeScreen() {
             <Ionicons name="arrow-forward-outline" size={16} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Card 3 - Settings */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => {
@@ -167,7 +170,7 @@ export default function HomeScreen() {
             <Ionicons name="arrow-forward-outline" size={16} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ScreenWrapper>
     </>
   );
 }
