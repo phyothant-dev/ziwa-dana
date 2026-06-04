@@ -2,6 +2,11 @@ import ScreenWrapper from "@/components/ScreenWrapper";
 import { translations } from "@/locales/index";
 import { initFrappeWithUrl } from "@/services/frappeService";
 import { login } from "@/services/loginService";
+import {
+    isValidEmail,
+    isValidPassword,
+    isValidUrl,
+} from "@/services/validationService";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -120,10 +125,7 @@ export default function LoginScreen() {
       setUrlError(t.urlRequiredError);
       return false;
     }
-    if (
-      !value.toLowerCase().startsWith("http://") &&
-      !value.toLowerCase().startsWith("https://")
-    ) {
+    if (!isValidUrl(value)) {
       setUrlError(t.urlPrefixError);
       return false;
     }
@@ -132,12 +134,11 @@ export default function LoginScreen() {
   };
 
   const validateEmail = (value: string): boolean => {
-    const emailRegex = /\S+@\S+\.\S+/;
     if (!value.trim()) {
       setEmailError(t.emailRequiredError);
       return false;
     }
-    if (!emailRegex.test(value)) {
+    if (!isValidEmail(value)) {
       setEmailError(t.emailInvalidError);
       return false;
     }
@@ -150,7 +151,7 @@ export default function LoginScreen() {
       setPasswordError(t.passwordRequiredError);
       return false;
     }
-    if (value.length < 6) {
+    if (!isValidPassword(value)) {
       setPasswordError(t.passwordLengthError);
       return false;
     }

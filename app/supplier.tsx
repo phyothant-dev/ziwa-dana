@@ -1,3 +1,4 @@
+import { ScreenHeader } from "@/components/ScreenHeader";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import { AddSupplierModal } from "@/components/supplierComponents/AddSupplierModal";
 import { SupplierCard } from "@/components/supplierComponents/SupplierCard";
@@ -13,7 +14,6 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { SupplierGroupType } from "@/types/supplierGroupType";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -195,21 +195,12 @@ export default function SupplierScreen() {
           }}
           ListHeaderComponent={
             <>
-              {/* HEADER */}
-              <View style={[styles.header, { backgroundColor: themeColor }]}>
-                <View style={styles.headerLeft}>
-                  <TouchableOpacity onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                  </TouchableOpacity>
-                  <Text style={styles.headerTitle}>{t.suppliersList}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.topButton}
-                  onPress={() => setShowModal(true)}
-                >
-                  <Ionicons name="add" size={18} color="#fff" />
-                  <Text style={styles.topButtonText}>{t.add}</Text>
-                </TouchableOpacity>
+              <View style={{ marginHorizontal: -16 }}>
+                {/* HEADER */}
+                <ScreenHeader
+                  title={t.suppliersList} // or t.settings
+                  themeColor={themeColor}
+                />
               </View>
 
               {/* SEARCH */}
@@ -301,36 +292,6 @@ export default function SupplierScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: -16,
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  headerTitle: {
-    color: "#fff",
-    fontSize: isSmallDevice ? 18 : 20,
-    fontWeight: "700",
-    marginLeft: 10,
-  },
-  topButton: {
-    height: isSmallDevice ? 38 : 42,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    paddingHorizontal: isSmallDevice ? 14 : 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  topButtonText: {
-    color: "#fff",
-    fontSize: isSmallDevice ? 14 : 15,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
   searchWrapper: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,

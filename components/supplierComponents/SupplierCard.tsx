@@ -1,30 +1,21 @@
+import { SupplierType } from "@/types/supplierType";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React from "react";
 import {
-  Dimensions,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
-type Supplier = {
-  name?: string;
-  supplier_name: string;
-  supplier_group: string;
-  supplier_type?: string;
-  default_currency?: string;
-  mobile_no?: string;
-  image?: string;
-};
-
 interface SupplierCardProps {
-  item: Supplier;
+  item: SupplierType;
   themeColor: string;
   baseUrl: string;
   rawMaterialLabel: string;
-  onPress: (item: Supplier) => void;
+  onPress: (item: SupplierType) => void;
   onPhoneCall: (phone: string) => void;
 }
 

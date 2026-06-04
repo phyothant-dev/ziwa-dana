@@ -1,28 +1,19 @@
+import { SupplierType } from "@/types/supplierType";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React from "react";
 import {
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
-type Supplier = {
-  name?: string;
-  supplier_name: string;
-  supplier_group: string;
-  supplier_type?: string;
-  default_currency?: string;
-  mobile_no?: string;
-  image?: string;
-};
-
 interface SupplierDetailModalProps {
-  supplier: Supplier | null;
+  supplier: SupplierType | null;
   onClose: () => void;
   baseUrl: string;
   themeColor: string;
@@ -85,7 +76,11 @@ export const SupplierDetailModal: React.FC<SupplierDetailModalProps> = ({
                         ? supplier.image
                         : `${baseUrl}${supplier.image}`,
                     }}
-                    style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      resizeMode: "cover",
+                    }}
                   />
                 ) : (
                   <Text style={[styles.avatarText, { color: themeColor }]}>
@@ -96,7 +91,9 @@ export const SupplierDetailModal: React.FC<SupplierDetailModalProps> = ({
               <Text style={styles.nameText}>{supplier?.supplier_name}</Text>
               <TouchableOpacity
                 disabled={!supplier?.mobile_no}
-                onPress={() => supplier?.mobile_no && onPhoneCall(supplier.mobile_no)}
+                onPress={() =>
+                  supplier?.mobile_no && onPhoneCall(supplier.mobile_no)
+                }
               >
                 <Text style={{ color: "#6B7280", fontSize: 16 }}>
                   {supplier?.mobile_no || t.noPhoneNumber}

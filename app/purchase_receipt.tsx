@@ -1,4 +1,5 @@
 import { PurchaseReceiptDetailModal } from "@/components/purchaseReceiptComponents/PurchaseReceiptDetailModal";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import { SupplierReceiptGroup } from "@/components/supplierComponents/SupplierReceiptGroup";
 import { translations } from "@/locales/index";
@@ -180,22 +181,20 @@ export default function MaterialPreOrderScreen() {
           ListHeaderComponent={
             <>
               {/* HEADER */}
-              <View style={[styles.header, { backgroundColor: themeColor }]}>
-                <View style={styles.headerLeft}>
-                  <TouchableOpacity onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                  </TouchableOpacity>
-                  <Text style={styles.headerTitle}>
-                    {t.purchaseReceiptList}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.topButton}
-                  onPress={() => router.push("/add_purchase_receipt")}
-                >
-                  <Ionicons name="add" size={18} color="#fff" />
-                  <Text style={styles.topButtonText}>{t.add}</Text>
-                </TouchableOpacity>
+              <View style={{ marginHorizontal: -16 }}>
+                <ScreenHeader
+                  title={t.purchaseReceiptList}
+                  themeColor={themeColor}
+                  rightAction={
+                    <TouchableOpacity
+                      style={styles.topButton}
+                      onPress={() => router.push("/add_purchase_receipt")}
+                    >
+                      <Ionicons name="add" size={18} color="#fff" />
+                      <Text style={styles.topButtonText}>{t.add}</Text>
+                    </TouchableOpacity>
+                  }
+                />
               </View>
 
               {/* STICKY SECTION */}
@@ -258,22 +257,7 @@ export default function MaterialPreOrderScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: -16,
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  headerTitle: {
-    color: "#fff",
-    fontSize: isSmallDevice ? 18 : 20,
-    fontWeight: "700",
-    marginLeft: 10,
-  },
+
   topButton: {
     height: 44,
     borderRadius: 22,

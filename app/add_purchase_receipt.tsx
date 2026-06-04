@@ -5,6 +5,8 @@ import {
     PickerItem,
     SearchablePickerModal,
 } from "@/components/purchaseReceiptComponents/SearchablePickerModal";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { translations } from "@/locales/index";
 import { debugGetSupplierDoc } from "@/services/frappeService";
 import { getItems } from "@/services/itemService";
@@ -37,7 +39,6 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function PurchaseScreen() {
   const { supplierName } = useLocalSearchParams<{ supplierName?: string }>();
@@ -395,29 +396,27 @@ export default function PurchaseScreen() {
   }));
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
       <StatusBar barStyle="light-content" />
 
       {/* HEADER */}
-      <View style={[styles.header, { backgroundColor: themeColor }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+      <ScreenHeader
+        title={t.purchaseReceipt}
+        themeColor={themeColor}
+        rightAction={
+          <TouchableOpacity
+            style={styles.cartButton}
+            onPress={() => setCartModalVisible(true)}
+          >
+            <Text style={styles.cartText}>{t.cart}</Text>
+            <View style={styles.cartBadge}>
+              <Text style={[styles.cartBadgeText, { color: themeColor }]}>
+                {totalCartCount}
+              </Text>
+            </View>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t.purchaseReceipt}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => setCartModalVisible(true)}
-        >
-          <Text style={styles.cartText}>{t.cart}</Text>
-          <View style={styles.cartBadge}>
-            <Text style={[styles.cartBadgeText, { color: themeColor }]}>
-              {totalCartCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+        }
+      />
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center" }}>
@@ -721,7 +720,7 @@ export default function PurchaseScreen() {
           </View>
         </TouchableOpacity>
       )}
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 

@@ -111,7 +111,7 @@ export const SupplierReceiptGroup: React.FC<SupplierReceiptGroupProps> = ({
             <Text style={styles.itemQuantityText}>
               {t.totalItemsCount.replace(
                 "{{count}}",
-                receipt.total_qty?.toString() || "0",
+                (receipt.total_qty ?? 0).toString(),
               )}
             </Text>
           </View>

@@ -1,3 +1,4 @@
+import { ScreenHeader } from "@/components/ScreenHeader";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import { CustomColorPickerModal } from "@/components/settingsComponents/CustomColorPickerModal";
 import { themeColors } from "@/constants/themeColors";
@@ -80,17 +81,10 @@ export default function SettingsScreen() {
       <StatusBar barStyle="light-content" />
 
       <ScreenWrapper>
-        {/* ── Header ── */}
-        <View style={[styles.header, { backgroundColor: pendingColor }]}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerIcon}>⚙️</Text>
-            <Text style={styles.headerTitle}>{t.settings}</Text>
-          </View>
-        </View>
-
+        <ScreenHeader
+          title={t.settings} // or t.settings
+          themeColor={themeColor}
+        />
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
